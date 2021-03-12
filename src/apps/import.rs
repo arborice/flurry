@@ -14,7 +14,7 @@ fn duplicate_checker<'cmds>(
 
 	if dup_checker.len() < prev_len {
 		let dedup_query = "Duplicates detected. (d)edup, (e)dit file, or (i)gnore?";
-		match query_stdin(dedup_query, Some("purple")) {
+		match query_stdin(dedup_query) {
 			Some(d) if d.eq_ignore_ascii_case("d") => *all_cmds = dup_checker,
 			Some(e) if e.eq_ignore_ascii_case("e") => *edit_config_after = true,
 			Some(i) if i.eq_ignore_ascii_case("i") => {}
@@ -44,7 +44,7 @@ pub fn import_cmds_from_file(file_path: &str) -> Result<()> {
 	write(&config_path, re_serialized)?;
 
 	if edit_config_after {
-		info!("blue"; "Opening commands file");
+		println!("Opening commands file");
 		run_cmd!(OS => &config_path)?;
 	}
 	Ok(())

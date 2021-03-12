@@ -71,6 +71,6 @@ pub fn insert_new_cmd(matches: &clap::ArgMatches) -> Result<()> {
 		}])
 	};
 	over_write_cmds(gen_cmds)?;
-	info!("green"; f"Added {}", key);
+	println!("Added {}", key);
 	Ok(())
 }

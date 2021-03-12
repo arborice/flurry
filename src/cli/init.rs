@@ -13,7 +13,7 @@ pub fn exec_cli(app: &mut clap::App) -> Result<()> {
             use crate::apps::export::export_gen_cmds;
             let output_path = export_matches.value_of("output-file");
             export_gen_cmds(output_path)?;
-            info!("Export success");
+            println!("Export success");
         }
         ("goto", Some(goto_matches)) => {
             use crate::{
@@ -31,7 +31,7 @@ pub fn exec_cli(app: &mut clap::App) -> Result<()> {
             use crate::apps::import::import_cmds_from_file;
             let import_path = import_matches.value_of("file").seppuku("File is required!");
             import_cmds_from_file(import_path)?;
-            info!("Commands imported");
+            println!("Commands imported");
         }
         ("play", Some(play_matches)) => {
             use crate::{apps::play::*, config::write::assert_config_exists};
@@ -53,7 +53,7 @@ pub fn exec_cli(app: &mut clap::App) -> Result<()> {
                 interactive()?;
             } else {
                 try_rm_cmd(rm_matches)?;
-                info!("Command removed");
+                println!("Command removed");
             }
         }
         _ => app.print_long_help()?,

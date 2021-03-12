@@ -41,7 +41,7 @@ pub fn exec_media_from_matches(matches: &clap::ArgMatches) -> Result<()> {
         filter.map(|f| f.to_lowercase()),
         media_player.valid_exts(),
     )?;
-    info!("green"; f"Opening {}", media_dir);
+    println!("Opening {}", media_dir);
 
     media_player.try_exec_override(media_files)?;
     Ok(())

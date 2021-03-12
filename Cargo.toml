@@ -1,6 +1,6 @@
 [package]
 name = "flurry"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["David Fajardo <sys_lectern@tutamail.com>"]
 edition = "2018"
 
@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0.38"
 clap = "2.33.3"
-colored = "2.0.0"
 home = "0.5.3"
 loading = "0.1.2"
 percent-encoding = "2.1.0"

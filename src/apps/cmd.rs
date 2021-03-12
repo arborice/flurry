@@ -6,7 +6,7 @@ pub fn dispatch_from_matches(args: &clap::ArgMatches) -> Result<()> {
         .ok_or(anyhow!("No query provided"))?;
     let cmds_file = ConfigPath::Commands.try_fetch()?;
     if cmds_file.trim().is_empty() {
-        seppuku!(0 => "purple"; "No commands exist yet, create some with the add command");
+        seppuku!(0 => "No commands exist yet, create some with the add command");
     }
 
     let cmds: GeneratedCommands = toml::from_str(&cmds_file)?;

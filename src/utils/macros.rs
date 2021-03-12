@@ -1,40 +1,18 @@
 #[macro_export]
-macro_rules! info {
-    // shorthand for success message
-    ($arg:expr) => {{
-        use colored::Colorize;
-        println!("{}", $arg.to_string().color("green"));
-    }};
-    // shorthand for unformatted string
-    ($color:expr; $arg:expr) => {{
-        use colored::Colorize;
-        println!("{}", $arg.to_string().color($color));
-    }};
-    // formatted string
-    ($color:expr; f$($args:tt)*) => {{
-        use colored::Colorize;
-        println!("{}", format!($($args)*).color($color));
-    }};
-}
-
-#[macro_export]
 macro_rules! seppuku {
     // shorthand for early exit
     ($arg:expr) => {{
-        use colored::Colorize;
-        println!("{}", $arg.to_string().color("red"));
+        eprintln!("{}", $arg);
         std::process::exit(1);
     }};
     // unformatted string with early exit
-    ($code:expr => $color:expr; $arg:expr) => {{
-        use colored::Colorize;
-        println!("{}", $arg.to_string().color($color));
+    ($code:expr => $arg:expr) => {{
+        eprintln!("{}", $arg);
         std::process::exit($code);
     }};
     // formatted string and early exit
-    ($code:expr => $color:expr; f$($args:tt)*) => {{
-        use colored::Colorize;
-        println!("{}", format!($($args)*).color($color));
+    ($code:expr => f$($args:tt)*) => {{
+        println!("{}", format!($($args)*));
         std::process::exit($code);
     }};
 }

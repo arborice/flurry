@@ -6,7 +6,7 @@ pub trait Program<'bin> {
 
     fn get_bin(&self) -> Self::Bin;
     fn not_found<S: std::fmt::Display>(message: S) -> ! {
-        seppuku!(404 => "red"; f"404 - {}", message)
+        seppuku!(404 => f"404 - {}", message)
     }
 }
 

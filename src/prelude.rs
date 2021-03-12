@@ -1,5 +1,5 @@
 // macros
-pub use super::{info, run_cmd, seppuku};
+pub use super::{run_cmd, seppuku};
 // crate utils
 pub use super::config::read::ConfigPath;
 pub use super::utils::{browser::bin::WebBrowser, ensure_root, os::query_stdin, traits::*};

@@ -31,7 +31,7 @@ impl Events {
                     match ev {
                         TermEv::Key(key) => {
                             if let Err(err) = tx.send(Event::KeyPress(key)) {
-                                crate::info!("red"; err);
+                                eprintln!("{}", err);
                                 return;
                             }
                             if !ignore_exit_key.load(Ordering::Relaxed)
@@ -42,7 +42,7 @@ impl Events {
                         }
                         TermEv::Mouse(me) => {
                             if let Err(err) = tx.send(Event::Mouse(me)) {
-                                crate::info!("red"; err);
+                                eprintln!("{}", err);
                                 return;
                             }
                         }
