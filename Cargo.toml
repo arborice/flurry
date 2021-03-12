@@ -12,11 +12,9 @@ clap = "2.33.3"
 colored = "2.0.0"
 home = "0.5.3"
 loading = "0.1.2"
-once_cell = { version = "1.7.0", features = ["parking_lot"] }
 percent-encoding = "2.1.0"
 rand = "0.8.3"
 serde = { version = "1.0.123", features = ["derive"] }
-strum = { version = "0.20.0", features = ["derive"] }
 termion = "1.5.6"
 tinyvec = { version = "1.1.1", features = ["rustc_1_40"] }
 toml = "0.5.8"

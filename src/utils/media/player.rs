@@ -1,22 +1,29 @@
 use crate::{config::types::*, prelude::*, utils::os::desktop_file_to_exec};
 use std::path::PathBuf;
 
-#[derive(strum::AsRefStr, Clone)]
+#[derive(Clone)]
 pub enum Player {
-    #[strum(serialize = "audio")]
     Audio,
-    #[strum(serialize = "image")]
     Image,
-    #[strum(serialize = "video")]
     Video,
+}
+
+impl AsRef<str> for Player {
+    fn as_ref(&self) -> &str {
+        match self {
+            Player::Audio => "audio",
+            Player::Image => "image",
+            Player::Video => "video",
+        }
+    }
 }
 
 impl Program<'_> for Player {
     type Bin = String;
 
     fn get_bin(&self) -> Self::Bin {
-        let desktop_file = self.try_query_mime().sudoku(None);
-        desktop_file_to_exec(desktop_file).sudoku(Some(
+        let desktop_file = self.try_query_mime().seppuku(None);
+        desktop_file_to_exec(desktop_file).seppuku(Some(
             "Unable to find handler for this media type. Please set an override in your config.",
         ))
     }

@@ -16,6 +16,6 @@ fn user_is_root() -> bool {
 #[allow(dead_code)]
 pub fn ensure_root() {
     if !user_is_root() {
-        crate::sudoku!("You must be superuser to use this command");
+        crate::seppuku!("You must be superuser to use this command");
     }
 }

@@ -53,7 +53,7 @@ pub fn render<'opts, 'items, F: FnMut(usize), T: ListEntry>(
             let layout = main_layout(frame);
             let items_list = match list_selections.is_empty() {
                 false => {
-                    app.styled_tui_list(selected_style.sudoku("style missing :("), list_selections)
+                    app.styled_tui_list(selected_style.seppuku("style missing :("), list_selections)
                 }
                 true => app.tui_list(),
             };

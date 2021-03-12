@@ -5,14 +5,23 @@ use crate::{
 };
 use std::path::PathBuf;
 
-#[derive(strum::AsRefStr, Clone)]
-#[strum(serialize_all = "lowercase")]
+#[derive(Clone)]
 pub enum WebBrowser {
     Brave,
     Firefox,
     Vivaldi,
-    #[strum(to_string = "xdg-open")]
     OsDfl,
+}
+
+impl AsRef<str> for WebBrowser {
+    fn as_ref(&self) -> &str {
+        match self {
+            WebBrowser::Brave => "brave",
+            WebBrowser::Firefox => "firefox",
+            WebBrowser::Vivaldi => "vivaldi",
+            WebBrowser::OsDfl => "xdg-open",
+        }
+    }
 }
 
 impl Default for WebBrowser {
@@ -38,17 +47,16 @@ impl<'bin> Program<'bin> for WebBrowser {
     }
 }
 
-impl AliasedProgram<'_> for WebBrowser {
+impl<'bin> AliasedProgram<'bin> for WebBrowser {
     type Alias = &'static str;
-    type Aliases = tinyvec::ArrayVec<[Self::Alias; 4]>;
+    type Aliases = &'bin [&'static str];
 
     fn aliases(&self) -> Self::Aliases {
-        use WebBrowser::*;
         match self {
-            Brave => *BRAVE_ALIASES,
-            Firefox => *FIREFOX_ALIASES,
-            Vivaldi => *VIVALDI_ALIASES,
-            OsDfl => tinyvec::array_vec!(),
+            WebBrowser::Brave => BRAVE_ALIASES,
+            WebBrowser::Firefox => FIREFOX_ALIASES,
+            WebBrowser::Vivaldi => VIVALDI_ALIASES,
+            WebBrowser::OsDfl => Self::not_found("OS default is a reserved type"),
         }
     }
 }
@@ -94,9 +102,15 @@ impl WebBrowser {
     }
 
     fn try_from_str(query: &str) -> Option<Self> {
-        for (b, bin) in BROWSER_ALIASES.iter() {
-            if b.eq_ignore_ascii_case(query) {
-                return Some(bin.clone());
+        for (browser_aliases, browser) in &[
+            (BRAVE_ALIASES, WebBrowser::Brave),
+            (FIREFOX_ALIASES, WebBrowser::Firefox),
+            (VIVALDI_ALIASES, WebBrowser::Vivaldi),
+        ] {
+            for alias in *browser_aliases {
+                if alias.eq_ignore_ascii_case(query) {
+                    return Some(browser.clone());
+                }
             }
         }
         None

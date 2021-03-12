@@ -18,7 +18,7 @@ fn duplicate_checker<'cmds>(
 			Some(d) if d.eq_ignore_ascii_case("d") => *all_cmds = dup_checker,
 			Some(e) if e.eq_ignore_ascii_case("e") => *edit_config_after = true,
 			Some(i) if i.eq_ignore_ascii_case("i") => {}
-			_ => sudoku!("Import canceled"),
+			_ => seppuku!("Import canceled"),
 		}
 	}
 }
@@ -28,7 +28,7 @@ pub fn import_cmds_from_file(file_path: &str) -> Result<()> {
 
 	let file_contents = read_to_string(file_path)?;
 	let import_deser: GeneratedCommands = toml::from_str(&file_contents)?;
-	let mut import_cmds = import_deser.commands.sudoku("No commands to import");
+	let mut import_cmds = import_deser.commands.seppuku("No commands to import");
 
 	let curr_file = read_to_string(&config_path)?;
 	let mut curr_deser: GeneratedCommands = toml::from_str(&curr_file)?;

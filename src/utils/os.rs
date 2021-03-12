@@ -6,7 +6,7 @@ pub fn query_stdin(query: &str, color: Option<&str>) -> Option<String> {
     info!(color.unwrap_or("normal"); f"{}", query);
     let mut buffer = String::new();
     if let Err(e) = stdin().read_line(&mut buffer) {
-        sudoku!(1 => "red"; f"Error reading input: {}", e);
+        seppuku!(1 => "red"; f"Error reading input: {}", e);
     }
     buffer = buffer.trim().to_owned();
     if buffer.is_empty() {

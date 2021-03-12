@@ -55,7 +55,7 @@ pub fn insert_new_cmd(matches: &clap::ArgMatches) -> Result<()> {
 
 	gen_cmds.commands = if let Some(mut cmds) = gen_cmds.commands {
 		if cmds.iter().any(|cmd| key.eq_ignore_ascii_case(cmd.key)) {
-			sudoku!("A command by that key is in the database!");
+			seppuku!("A command by that key is in the database!");
 		}
 		cmds.push(GeneratedCommand {
 			key: &key,

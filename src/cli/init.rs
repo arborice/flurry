@@ -29,7 +29,7 @@ pub fn exec_cli(app: &mut clap::App) -> Result<()> {
         }
         ("import", Some(import_matches)) => {
             use crate::apps::import::import_cmds_from_file;
-            let import_path = import_matches.value_of("file").sudoku("File is required!");
+            let import_path = import_matches.value_of("file").seppuku("File is required!");
             import_cmds_from_file(import_path)?;
             info!("Commands imported");
         }

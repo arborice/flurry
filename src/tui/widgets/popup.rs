@@ -61,7 +61,7 @@ pub fn render_popup<T: ListEntry, B: Backend>(
     let frame_size = frame.size();
     let popup_label = centered_label(
         opts.message,
-        Some(&app.items.borrow()[app.state.selected().sudoku("runtime failure :(")]),
+        Some(&app.items.borrow()[app.state.selected().seppuku("runtime failure :(")]),
     );
     let popup_rect = centered_rect(60, 4, frame_size);
     let popup_block = Block::default().title(opts.title).borders(Borders::ALL);

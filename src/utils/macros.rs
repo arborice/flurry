@@ -18,7 +18,7 @@ macro_rules! info {
 }
 
 #[macro_export]
-macro_rules! sudoku {
+macro_rules! seppuku {
     // shorthand for early exit
     ($arg:expr) => {{
         use colored::Colorize;

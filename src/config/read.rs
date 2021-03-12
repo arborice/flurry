@@ -20,11 +20,8 @@ impl ConfigPath {
 
 	pub fn try_fetch(&self) -> Result<String> {
 		match self {
-			ConfigPath::Base => sudoku!("Base is the config dir, not a file"),
-			_ => {
-				let file = read_to_string(self.abs())?;
-				Ok(file)
-			}
+			ConfigPath::Base => seppuku!("Base is the config dir, not a file"),
+			_ => read_to_string(self.abs()).map_err(|e| anyhow!(e)),
 		}
 	}
 }

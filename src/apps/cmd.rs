@@ -6,7 +6,7 @@ pub fn dispatch_from_matches(args: &clap::ArgMatches) -> Result<()> {
         .ok_or(anyhow!("No query provided"))?;
     let cmds_file = ConfigPath::Commands.try_fetch()?;
     if cmds_file.trim().is_empty() {
-        sudoku!(0 => "purple"; "No commands exist yet, create some with the add command");
+        seppuku!(0 => "purple"; "No commands exist yet, create some with the add command");
     }
 
     let cmds: GeneratedCommands = toml::from_str(&cmds_file)?;
@@ -31,7 +31,7 @@ fn dispatch_command(args: &clap::ArgMatches, cmd: &GeneratedCommand) -> Result<(
             let browser = WebBrowser::from_matches(args);
             let url_queries = args
                 .values_of("queries")
-                .sudoku("No web queries provided!")
+                .seppuku("No web queries provided!")
                 .collect::<Vec<&str>>();
             open_target_url_with_args(browser, cmd.target, url_queries)?;
         }
@@ -69,7 +69,7 @@ pub fn interactive() -> Result<()> {
             let cmd = &cmds_list.borrow()[index];
             if let CommandType::Url = cmd.cmd_type {
                 let browser = WebBrowser::default_from_config().unwrap_or_default();
-                open_target_url(browser, cmd.target).sudoku(None);
+                open_target_url(browser, cmd.target).seppuku(None);
             }
         });
 

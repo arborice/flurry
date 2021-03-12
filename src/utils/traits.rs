@@ -6,13 +6,13 @@ pub trait Program<'bin> {
 
     fn get_bin(&self) -> Self::Bin;
     fn not_found<S: std::fmt::Display>(message: S) -> ! {
-        sudoku!(404 => "red"; f"404 - {}", message)
+        seppuku!(404 => "red"; f"404 - {}", message)
     }
 }
 
 pub trait AliasedProgram<'bin>: Program<'bin> {
-    type Alias: AsRef<OsStr> + AsRef<str>;
-    type Aliases: IntoIterator<Item = Self::Alias>;
+    type Alias: AsRef<OsStr> + AsRef<str> + 'bin;
+    type Aliases: IntoIterator<Item = &'bin Self::Alias>;
 
     fn aliases(&self) -> Self::Aliases;
     fn is_override<'a>(&self, over_ride: &'a str) -> bool {

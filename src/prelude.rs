@@ -1,5 +1,5 @@
 // macros
-pub use super::{info, run_cmd, sudoku};
+pub use super::{info, run_cmd, seppuku};
 // crate utils
 pub use super::config::read::ConfigPath;
 pub use super::utils::{browser::bin::WebBrowser, ensure_root, os::query_stdin, traits::*};
@@ -21,28 +21,28 @@ pub fn encode_url<S: AsRef<str>>(url: S) -> String {
     utf8_percent_encode(url.as_ref(), FRAGMENT).to_string()
 }
 
-pub trait Sudoku<T>: Sized {
+pub trait Seppuku<T>: Sized {
     type Message;
-    fn sudoku(self, exit_message: Self::Message) -> T;
+    fn seppuku(self, exit_message: Self::Message) -> T;
 }
 
-impl<T> Sudoku<T> for Option<T> {
+impl<T> Seppuku<T> for Option<T> {
     type Message = &'static str;
-    fn sudoku(self, exit_message: Self::Message) -> T {
+    fn seppuku(self, exit_message: Self::Message) -> T {
         match self {
             Some(any) => any,
-            None => crate::sudoku!(exit_message),
+            None => crate::seppuku!(exit_message),
         }
     }
 }
-impl<T, E: std::fmt::Display> Sudoku<T> for Result<T, E> {
+impl<T, E: std::fmt::Display> Seppuku<T> for Result<T, E> {
     type Message = Option<&'static str>;
-    fn sudoku(self, exit_message: Self::Message) -> T {
+    fn seppuku(self, exit_message: Self::Message) -> T {
         match self {
             Ok(any) => any,
             Err(e) => match exit_message {
-                Some(msg) => crate::sudoku!(msg),
-                None => crate::sudoku!(e),
+                Some(msg) => crate::seppuku!(msg),
+                None => crate::seppuku!(e),
             },
         }
     }
