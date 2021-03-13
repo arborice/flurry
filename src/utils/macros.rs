@@ -48,6 +48,8 @@ macro_rules! run_cmd {
         std::process::Command::new($cmd)
             .args(&[$($args,)*])
             .spawn()
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!(e))
     }};
     // spawn raw cmd and cwd with variadic args
     (@ $cmd:expr => $($args:expr),* $(,)?) => {{
@@ -56,5 +58,7 @@ macro_rules! run_cmd {
             $(.args($args,))*
             .stdout(Stdio::null())
             .spawn()
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!(e))
     }};
 }

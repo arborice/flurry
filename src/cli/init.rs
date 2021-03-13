@@ -1,58 +1,42 @@
-use crate::prelude::*;
+use crate::{
+    config::types::{GeneratedCommands, GlobalConfig},
+    prelude::*,
+};
 
-pub fn exec_cli(app: &mut clap::App) -> Result<()> {
+pub fn exec_cli(
+    app: &mut clap::App,
+    gen_cmds: GeneratedCommands,
+    cfg: Option<GlobalConfig>,
+) -> Result<()> {
     let matches = app.get_matches_from_safe_borrow(std::env::args_os())?;
 
     match matches.subcommand() {
-        ("add", Some(add_matches)) => {
-            use crate::config::write::{assert_config_exists, insert_new_cmd};
-            assert_config_exists()?;
-            insert_new_cmd(add_matches)?;
-        }
-        ("export", Some(export_matches)) => {
-            use crate::apps::export::export_gen_cmds;
-            let output_path = export_matches.value_of("output-file");
-            export_gen_cmds(output_path)?;
-            println!("Export success");
-        }
-        ("goto", Some(goto_matches)) => {
-            use crate::{
-                apps::cmd::{dispatch_from_matches, interactive},
-                config::write::assert_config_exists,
-            };
-            assert_config_exists()?;
-            if goto_matches.is_present("interactive-mode") {
-                interactive()
+        ("add", Some(add_args)) => crate::config::write::insert_new_cmd(add_args, gen_cmds)?,
+        ("import", Some(import_args)) => crate::apps::import::import_cmds_from_file(import_args)?,
+        ("export", Some(export_args)) => crate::apps::export::export_gen_cmds(export_args)?,
+        ("goto", Some(goto_args)) => {
+            use crate::apps::cmd::{dispatch_from_matches, interactive};
+            if goto_args.is_present("interactive-mode") {
+                interactive(goto_args, gen_cmds, cfg)
             } else {
-                dispatch_from_matches(goto_matches)
+                dispatch_from_matches(goto_args, gen_cmds, cfg)
             }?;
         }
-        ("import", Some(import_matches)) => {
-            use crate::apps::import::import_cmds_from_file;
-            let import_path = import_matches.value_of("file").seppuku("File is required!");
-            import_cmds_from_file(import_path)?;
-            println!("Commands imported");
-        }
-        ("play", Some(play_matches)) => {
-            use crate::{apps::play::*, config::write::assert_config_exists};
-            assert_config_exists()?;
+        ("play", Some(play_args)) => {
+            use crate::apps::play::*;
 
-            if play_matches.is_present("interactive-mode") {
-                interactive(play_matches)
+            if play_args.is_present("interactive-mode") {
+                interactive(play_args, cfg)
             } else {
-                exec_media_from_matches(play_matches)
+                exec_media_from_matches(play_args, cfg)
             }?;
         }
-        ("rm", Some(rm_matches)) => {
-            use crate::{
-                apps::rm::{interactive, try_rm_cmd},
-                config::write::assert_config_exists,
-            };
-            assert_config_exists()?;
-            if rm_matches.is_present("interactive-mode") {
-                interactive()?;
+        ("rm", Some(rm_args)) => {
+            use crate::apps::rm::{interactive, try_rm_cmd};
+            if rm_args.is_present("interactive-mode") {
+                interactive(gen_cmds)?;
             } else {
-                try_rm_cmd(rm_matches)?;
+                try_rm_cmd(rm_args, gen_cmds)?;
                 println!("Command removed");
             }
         }

@@ -1,4 +1,4 @@
-use crate::{config::types::*, prelude::*, utils::os::desktop_file_to_exec};
+use crate::{config::types::*, prelude::*, utils::os::linux::desktop_file_to_exec};
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -32,11 +32,8 @@ impl Program<'_> for Player {
 impl ProgramExec<'_, '_> for Player {
     type Args = Vec<PathBuf>;
 
-    fn try_exec_override(&self, media_files: Self::Args) -> Result<()> {
-        let config_file = ConfigPath::Config.try_fetch()?;
-        let config: GlobalConfig = toml::from_str(&config_file)?;
-
-        if let Some(media_players) = config.media_players {
+    fn try_exec_override(&self, media_files: Self::Args, cfg: &GlobalConfig) -> Result<()> {
+        if let Some(media_players) = &cfg.media_players {
             if let Some(MediaPlayerOverride { bin, args }) = media_players.get(self.as_ref()) {
                 match args {
                     Some(args) => run_cmd!(@ bin => args, media_files),

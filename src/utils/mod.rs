@@ -1,7 +1,7 @@
-pub mod browser;
+pub mod fs;
 pub mod macros;
-pub mod media;
 pub mod os;
+pub mod programs;
 pub mod traits;
 
 #[allow(dead_code)]

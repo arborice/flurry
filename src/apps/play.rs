@@ -1,6 +1,9 @@
-use crate::{prelude::*, tui::prelude::*, utils::media::player::Player};
-use rand::{seq::SliceRandom, thread_rng};
-use std::{fs::read_dir, path::PathBuf};
+use crate::{
+    prelude::*,
+    tui::prelude::*,
+    utils::{fs::recursive::fetch_file_list, programs::media::player::Player},
+};
+use std::path::PathBuf;
 
 struct MediaOpts<'m> {
     random: bool,
@@ -26,7 +29,10 @@ fn unwrap_matches<'m>(matches: &'m clap::ArgMatches) -> Option<MediaOpts<'m>> {
     })
 }
 
-pub fn exec_media_from_matches(matches: &clap::ArgMatches) -> Result<()> {
+pub fn exec_media_from_matches(
+    matches: &clap::ArgMatches,
+    cfg: Option<GlobalConfig>,
+) -> Result<()> {
     let MediaOpts {
         random,
         files_dir,
@@ -35,16 +41,23 @@ pub fn exec_media_from_matches(matches: &clap::ArgMatches) -> Result<()> {
         media_player,
     } = unwrap_matches(matches).ok_or(anyhow!("No query provided"))?;
 
-    let media_files = fetch_file_list(
-        &files_dir,
-        random,
-        filter.map(|f| f.to_lowercase()),
-        media_player.valid_exts(),
-    )?;
+    let media_files = if !matches.is_present("case-insensitive-filter") {
+        fetch_file_list(&files_dir, random, filter, media_player.valid_exts())
+    } else {
+        fetch_file_list(
+            &files_dir,
+            random,
+            filter.map(|f| f.to_lowercase()),
+            media_player.valid_exts(),
+        )
+    }?;
     println!("Opening {}", media_dir);
 
-    media_player.try_exec_override(media_files)?;
-    Ok(())
+    if let Some(config) = cfg {
+        media_player.try_exec_override(media_files, &config)
+    } else {
+        run_cmd!(@ media_player.get_bin() => media_files)
+    }
 }
 
 impl ListEntry for PathBuf {
@@ -75,7 +88,7 @@ fn tui_opts<'opts, F: FnMut(usize)>(callback: F) -> Result<TuiOpts<'opts, F>> {
     Ok(opts)
 }
 
-pub fn interactive(matches: &clap::ArgMatches) -> Result<()> {
+pub fn interactive(matches: &clap::ArgMatches, cfg: Option<GlobalConfig>) -> Result<()> {
     let MediaOpts {
         random,
         files_dir,
@@ -84,12 +97,16 @@ pub fn interactive(matches: &clap::ArgMatches) -> Result<()> {
         ..
     } = unwrap_matches(matches).ok_or(anyhow!("No query provided"))?;
 
-    let mut media_files = fetch_file_list(
-        &files_dir,
-        random,
-        filter.map(|f| f.to_lowercase()),
-        media_player.valid_exts(),
-    )?;
+    let mut media_files = if !matches.is_present("case-insensitive-filter") {
+        fetch_file_list(&files_dir, random, filter, media_player.valid_exts())
+    } else {
+        fetch_file_list(
+            &files_dir,
+            random,
+            filter.map(|f| f.to_lowercase()),
+            media_player.valid_exts(),
+        )
+    }?;
     let media_files_ref = RefCell::from(&mut media_files);
 
     let mut playlist = vec![];
@@ -102,79 +119,13 @@ pub fn interactive(matches: &clap::ArgMatches) -> Result<()> {
     let mut i = 0;
     media_files.retain(|_| (playlist.contains(&i), i += 1).0);
     match last_entered_char {
-        '\n' => media_player.try_exec_override(media_files),
+        '\n' => {
+            if let Some(config) = cfg {
+                media_player.try_exec_override(media_files, &config)
+            } else {
+                run_cmd!(@ media_player.get_bin() => media_files)
+            }
+        }
         _ => Ok(()),
     }
-}
-
-fn fetch_file_list(
-    path: &PathBuf,
-    random: bool,
-    filter: Option<String>,
-    valid_exts: &[&str],
-) -> Result<Vec<PathBuf>> {
-    let mut file_list: Vec<PathBuf> = vec![];
-    match filter {
-        Some(filter) => filtered_recurse_dir(path, &filter, &mut file_list, valid_exts),
-        None => recurse_dir(path, &mut file_list, valid_exts),
-    }?;
-
-    if random {
-        let mut rand_range = thread_rng();
-        file_list.shuffle(&mut rand_range);
-    }
-
-    Ok(file_list)
-}
-
-fn recurse_dir(
-    dir_path: &PathBuf,
-    container: &mut Vec<PathBuf>,
-    valid_exts: &[&str],
-) -> Result<()> {
-    for entry in read_dir(dir_path)? {
-        let path = entry?.path();
-        if !path.is_dir() {
-            match get_owned_ext(&path) {
-                Some(ext) => {
-                    if valid_exts.contains(&ext) {
-                        container.push(path);
-                    }
-                }
-                None => continue,
-            }
-        } else {
-            recurse_dir(&path, container, valid_exts)?;
-        }
-    }
-    Ok(())
-}
-
-fn get_owned_ext(path: &PathBuf) -> Option<&str> {
-    path.extension()?.to_str()
-}
-
-fn filtered_recurse_dir(
-    dir_path: &PathBuf,
-    filter: &str,
-    container: &mut Vec<PathBuf>,
-    valid_exts: &[&str],
-) -> Result<()> {
-    for entry in read_dir(dir_path)? {
-        let path = entry?.path();
-        if !path.is_dir() {
-            match get_owned_ext(&path) {
-                Some(ext) => {
-                    if valid_exts.contains(&ext) && path.clone().to_string_lossy().contains(filter)
-                    {
-                        container.push(path);
-                    }
-                }
-                None => continue,
-            }
-        } else {
-            recurse_dir(&path, container, valid_exts)?;
-        }
-    }
-    Ok(())
 }

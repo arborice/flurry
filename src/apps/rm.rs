@@ -4,12 +4,10 @@ use crate::{
     tui::prelude::*,
 };
 
-pub fn try_rm_cmd(matches: &clap::ArgMatches) -> Result<()> {
+pub fn try_rm_cmd(matches: &clap::ArgMatches, mut gen_cmds: GeneratedCommands) -> Result<()> {
     let key = matches
         .value_of("key")
         .ok_or(anyhow!("No key value provided"))?;
-    let cmds_file = ConfigPath::Commands.try_fetch()?;
-    let mut gen_cmds: GeneratedCommands = toml::from_str(&cmds_file)?;
 
     if let Some(mut cmds) = gen_cmds.commands {
         for (i, cmd) in cmds.iter().enumerate() {
@@ -24,9 +22,7 @@ pub fn try_rm_cmd(matches: &clap::ArgMatches) -> Result<()> {
     bail!("No command found by that key")
 }
 
-pub fn interactive() -> Result<()> {
-    let cmds_file = ConfigPath::Commands.try_fetch()?;
-    let mut gen_cmds: GeneratedCommands = toml::from_str(&cmds_file)?;
+pub fn interactive(mut gen_cmds: GeneratedCommands) -> Result<()> {
     if let Some(ref mut cmds_list) = gen_cmds.commands {
         let cmds_list = RefCell::from(cmds_list);
 
@@ -45,6 +41,6 @@ pub fn interactive() -> Result<()> {
             _ => Ok(()),
         }
     } else {
-        Err(anyhow!("No commands yet!"))
+        bail!("No commands yet!")
     }
 }

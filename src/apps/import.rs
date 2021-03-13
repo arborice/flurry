@@ -23,7 +23,8 @@ fn duplicate_checker<'cmds>(
 	}
 }
 
-pub fn import_cmds_from_file(file_path: &str) -> Result<()> {
+pub fn import_cmds_from_file(matches: &clap::ArgMatches) -> Result<()> {
+	let file_path = matches.value_of("file").seppuku("File is required!");
 	let config_path = ConfigPath::Commands.abs();
 
 	let file_contents = read_to_string(file_path)?;
@@ -47,5 +48,7 @@ pub fn import_cmds_from_file(file_path: &str) -> Result<()> {
 		println!("Opening commands file");
 		run_cmd!(OS => &config_path)?;
 	}
+
+	println!("Commands imported");
 	Ok(())
 }

@@ -1,8 +1,13 @@
 // macros
 pub use super::{run_cmd, seppuku};
 // crate utils
-pub use super::config::read::ConfigPath;
-pub use super::utils::{browser::bin::WebBrowser, ensure_root, os::query_stdin, traits::*};
+pub use super::config::{read::ConfigPath, types::GlobalConfig};
+pub use super::utils::{
+    ensure_root,
+    os::query_stdin,
+    programs::browser::{bin::WebBrowser, run::web_query},
+    traits::*,
+};
 
 // std lib
 pub use std::fs::{read_to_string, write};
@@ -35,6 +40,7 @@ impl<T> Seppuku<T> for Option<T> {
         }
     }
 }
+
 impl<T, E: std::fmt::Display> Seppuku<T> for Result<T, E> {
     type Message = Option<&'static str>;
     fn seppuku(self, exit_message: Self::Message) -> T {

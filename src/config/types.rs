@@ -15,6 +15,13 @@ pub struct MediaPlayerOverride<'a> {
 }
 
 #[derive(Deserialize, Serialize)]
+pub struct GenericUtil<'a> {
+	pub bin: &'a str,
+	pub args: Option<Vec<&'a str>>,
+	pub aliases: Option<Vec<&'a str>>,
+}
+
+#[derive(Deserialize, Serialize)]
 pub struct GlobalConfig<'a> {
 	pub default_browser: Option<&'a str>,
 	#[serde(borrow, rename = "player")]

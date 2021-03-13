@@ -1,14 +1,17 @@
 use crate::{
     config::types::*,
     prelude::*,
-    utils::browser::{aliases::*, run::*},
+    utils::programs::browser::{aliases::*, run::*},
 };
 use std::path::PathBuf;
 
 #[derive(Clone)]
 pub enum WebBrowser {
     Brave,
+    Chrome,
+    Edge,
     Firefox,
+    Safari,
     Vivaldi,
     OsDfl,
 }
@@ -17,7 +20,10 @@ impl AsRef<str> for WebBrowser {
     fn as_ref(&self) -> &str {
         match self {
             WebBrowser::Brave => "brave",
+            WebBrowser::Chrome => "chrome",
+            WebBrowser::Edge => "edge",
             WebBrowser::Firefox => "firefox",
+            WebBrowser::Safari => "Safari",
             WebBrowser::Vivaldi => "vivaldi",
             WebBrowser::OsDfl => "xdg-open",
         }
@@ -47,30 +53,36 @@ impl<'bin> Program<'bin> for WebBrowser {
     }
 }
 
-impl<'bin> AliasedProgram<'bin> for WebBrowser {
-    type Alias = &'static str;
-    type Aliases = &'bin [&'static str];
+impl<'alias> AliasedProgram<'alias, '_> for WebBrowser {
+    type Alias = &'alias str;
+    type Aliases = &'alias [&'static str];
 
     fn aliases(&self) -> Self::Aliases {
         match self {
             WebBrowser::Brave => BRAVE_ALIASES,
+            WebBrowser::Chrome => CHROME_ALIASES,
+            WebBrowser::Edge => EDGE_ALIASES,
             WebBrowser::Firefox => FIREFOX_ALIASES,
+            WebBrowser::Safari => SAFARI_ALIASES,
             WebBrowser::Vivaldi => VIVALDI_ALIASES,
             WebBrowser::OsDfl => Self::not_found("OS default is a reserved type"),
         }
+    }
+
+    fn is_override(&self, over_ride: &Self::Alias) -> bool {
+        self.aliases()
+            .iter()
+            .any(|alias| alias.eq_ignore_ascii_case(over_ride))
     }
 }
 
 impl ProgramExec<'_, '_> for WebBrowser {
     type Args = String;
 
-    fn try_exec_override(&self, url: Self::Args) -> Result<()> {
-        let config_file = ConfigPath::Config.try_fetch()?;
-        let config: GlobalConfig = toml::from_str(&config_file)?;
-
-        if let Some(overrides) = config.overrides {
-            for ProgramOverride { cmd, args } in &overrides {
-                if self.is_override(*cmd) {
+    fn try_exec_override(&self, url: Self::Args, cfg: &GlobalConfig) -> Result<()> {
+        if let Some(overrides) = &cfg.overrides {
+            for ProgramOverride { cmd, args } in overrides {
+                if self.is_override(cmd) {
                     if let Some(browser_override) = <Self>::try_from_str(*cmd) {
                         return match args {
                             Some(args) => web_query_with_browser_args(&browser_override, args, url),
@@ -86,25 +98,23 @@ impl ProgramExec<'_, '_> for WebBrowser {
 }
 
 impl WebBrowser {
-    pub fn from_matches(matches: &clap::ArgMatches) -> Self {
-        match matches.value_of("program") {
-            None => Self::default_from_config(),
-            Some(browser) => <Self>::try_from_str(browser),
-        }
-        .unwrap_or_default()
+    pub fn from_matches(matches: &clap::ArgMatches) -> Option<Self> {
+        let given_query = matches.value_of("program")?;
+        <Self>::try_from_str(given_query)
     }
 
-    pub fn default_from_config() -> Option<Self> {
-        let config_file = ConfigPath::Config.try_fetch().ok()?;
-        let config: GlobalConfig = toml::from_str(&config_file).ok()?;
-        let dfl_browser = config.default_browser?;
+    pub fn default_from_config(cfg: &GlobalConfig) -> Option<Self> {
+        let dfl_browser = cfg.default_browser?;
         <Self>::try_from_str(dfl_browser)
     }
 
     fn try_from_str(query: &str) -> Option<Self> {
         for (browser_aliases, browser) in &[
             (BRAVE_ALIASES, WebBrowser::Brave),
+            (CHROME_ALIASES, WebBrowser::Chrome),
+            (EDGE_ALIASES, WebBrowser::Edge),
             (FIREFOX_ALIASES, WebBrowser::Firefox),
+            (SAFARI_ALIASES, WebBrowser::Safari),
             (VIVALDI_ALIASES, WebBrowser::Vivaldi),
         ] {
             for alias in *browser_aliases {

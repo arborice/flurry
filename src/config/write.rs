@@ -1,14 +1,6 @@
 use crate::{config::types::*, prelude::*};
 use std::fs::create_dir_all;
 
-pub fn assert_config_exists() -> Result<()> {
-	if !ConfigPath::Base.abs().exists() {
-		setup_config_path()
-	} else {
-		Ok(())
-	}
-}
-
 fn comment_all(content: String) -> String {
 	content
 		.lines()
@@ -37,7 +29,20 @@ pub fn over_write_cmds(new_cmds: GeneratedCommands) -> Result<()> {
 	Ok(())
 }
 
-pub fn insert_new_cmd(matches: &clap::ArgMatches) -> Result<()> {
+fn append_cmd(new_cmd: GeneratedCommand) -> Result<()> {
+	use std::{fs::OpenOptions, io::Write};
+
+	let serialized_cmd = toml::to_vec(&new_cmd)?;
+	let mut cmds_file = OpenOptions::new()
+		.append(true)
+		.open(ConfigPath::Commands.abs())?;
+
+	cmds_file.write(&*serialized_cmd)?;
+	cmds_file.flush()?;
+	Ok(())
+}
+
+pub fn insert_new_cmd(matches: &clap::ArgMatches, gen_cmds: GeneratedCommands) -> Result<()> {
 	let key = matches
 		.value_of("name")
 		.ok_or(anyhow!("No key value provided"))?;
@@ -50,27 +55,22 @@ pub fn insert_new_cmd(matches: &clap::ArgMatches) -> Result<()> {
 		_ => CommandType::Url,
 	};
 
-	let cmds_file = ConfigPath::Commands.try_fetch()?;
-	let mut gen_cmds: GeneratedCommands = toml::from_str(&cmds_file)?;
-
-	gen_cmds.commands = if let Some(mut cmds) = gen_cmds.commands {
+	if let Some(cmds) = gen_cmds.commands {
 		if cmds.iter().any(|cmd| key.eq_ignore_ascii_case(cmd.key)) {
 			seppuku!("A command by that key is in the database!");
 		}
-		cmds.push(GeneratedCommand {
+		append_cmd(GeneratedCommand {
 			key: &key,
 			target,
 			cmd_type,
-		});
-		Some(cmds)
+		})
 	} else {
-		Some(vec![GeneratedCommand {
+		append_cmd(GeneratedCommand {
 			key: &key,
 			target,
 			cmd_type,
-		}])
-	};
-	over_write_cmds(gen_cmds)?;
+		})
+	}?;
 	println!("Added {}", key);
 	Ok(())
 }
