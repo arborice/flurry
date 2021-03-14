@@ -1,7 +1,7 @@
 use crate::{config::types::*, prelude::*, utils::os::linux::desktop_file_to_exec};
 use std::path::PathBuf;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Player {
     Audio,
     Image,
@@ -70,7 +70,7 @@ impl Player {
         Ok(desktop_file)
     }
 
-    fn from_str(query: &str) -> Self {
+    pub fn from_str(query: &str) -> Self {
         match query {
             "audio" => Self::Audio,
             "image" => Self::Image,

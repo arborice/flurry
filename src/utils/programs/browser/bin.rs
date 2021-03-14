@@ -5,7 +5,7 @@ use crate::{
 };
 use std::path::PathBuf;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum WebBrowser {
     Brave,
     Chrome,
@@ -108,7 +108,7 @@ impl WebBrowser {
         <Self>::try_from_str(dfl_browser)
     }
 
-    fn try_from_str(query: &str) -> Option<Self> {
+    pub fn try_from_str(query: &str) -> Option<Self> {
         for (browser_aliases, browser) in &[
             (BRAVE_ALIASES, WebBrowser::Brave),
             (CHROME_ALIASES, WebBrowser::Chrome),

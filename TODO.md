@@ -1,8 +1,7 @@
-> shrink deps tree
+> init procedure
 > -
-> - anyhow is nice, but a crate-wide error type could achieve the same convenience
-> - REMOVED <del/> once_cell isn't needed. webbrowser aliases do not need to be static
-> - REMOVED <del/> strum is similarly nice, but usage has been cut to impl'ing AsRef<str> - not needed
+> - missing dotfiles write fn call on first run
+> - missing shell completions *(**panics** w/ subcommands from clap bug, will have to process app by app)*
 
 <br/>
 
