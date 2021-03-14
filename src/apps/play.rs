@@ -1,66 +1,8 @@
 use crate::{
-    prelude::*,
-    tui::prelude::*,
-    utils::{fs::recursive::fetch_file_list, programs::media::player::Player},
+    cli::argh::PlayCmd, prelude::*, tui::prelude::*, utils::fs::recursive::fetch_file_list,
 };
-use std::path::PathBuf;
 
-struct MediaOpts<'m> {
-    random: bool,
-    files_dir: PathBuf,
-    filter: Option<&'m str>,
-    media_dir: &'m str,
-    media_player: Player,
-}
-
-fn unwrap_matches<'m>(matches: &'m clap::ArgMatches) -> Option<MediaOpts<'m>> {
-    let media_dir = matches.value_of("directory")?;
-    let random = matches.is_present("random");
-    let filter = matches.value_of("filter");
-    let media_player = Player::from_matches(matches);
-    let files_dir = PathBuf::from(&media_dir);
-
-    Some(MediaOpts {
-        random,
-        files_dir,
-        filter,
-        media_dir,
-        media_player,
-    })
-}
-
-pub fn exec_media_from_matches(
-    matches: &clap::ArgMatches,
-    cfg: Option<GlobalConfig>,
-) -> Result<()> {
-    let MediaOpts {
-        random,
-        files_dir,
-        filter,
-        media_dir,
-        media_player,
-    } = unwrap_matches(matches).ok_or(anyhow!("No query provided"))?;
-
-    let media_files = if !matches.is_present("case-insensitive-filter") {
-        fetch_file_list(&files_dir, random, filter, media_player.valid_exts())
-    } else {
-        fetch_file_list(
-            &files_dir,
-            random,
-            filter.map(|f| f.to_lowercase()),
-            media_player.valid_exts(),
-        )
-    }?;
-    println!("Opening {}", media_dir);
-
-    if let Some(config) = cfg {
-        media_player.try_exec_override(media_files, &config)
-    } else {
-        run_cmd!(@ media_player.get_bin() => media_files)
-    }
-}
-
-impl ListEntry for PathBuf {
+impl ListEntry for std::path::PathBuf {
     fn as_context(&self) -> &str {
         self.to_str().unwrap()
     }
@@ -70,41 +12,71 @@ impl ListEntry for PathBuf {
     }
 }
 
+pub fn exec_media_from_args(
+    PlayCmd {
+        case_insensitive_filter,
+        directory,
+        player,
+        random,
+        filter,
+        ..
+    }: PlayCmd,
+    cfg: Option<GlobalConfig>,
+) -> Result<()> {
+    let media_files = if !case_insensitive_filter {
+        fetch_file_list(&directory, random, filter, player.valid_exts())
+    } else {
+        fetch_file_list(
+            &directory,
+            random,
+            filter.map(|f| f.to_lowercase()),
+            player.valid_exts(),
+        )
+    }?;
+    println!("Opening {}", directory.display());
+
+    if let Some(config) = cfg {
+        player.try_exec_override(media_files, &config)
+    } else {
+        run_cmd!(@ player.get_bin() => media_files)
+    }
+}
+
 fn tui_opts<'opts, F: FnMut(usize)>(callback: F) -> Result<TuiOpts<'opts, F>> {
     let input_handler = TuiInputHandler {
         select: array_vec!(Ec => EventCap::with_key(' '), EventCap::LeftClick),
         exit: array_vec!(Ec => EventCap::with_key('\n'), EventCap::with_key('q'), EventCap::ctrl_c()),
         ..Default::default()
     };
-    let event_loop = Events::with_exit_triggers(&input_handler.exit);
     let non_halting_callback = TuiCallback::NonHalting(callback);
 
-    let opts = TuiOpts::new(input_handler, event_loop, non_halting_callback)?
-        .with_selection_highlighter(
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::ITALIC),
-        );
+    let opts = TuiOpts::new(input_handler, non_halting_callback).with_selection_highlighter(
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::ITALIC),
+    );
     Ok(opts)
 }
 
-pub fn interactive(matches: &clap::ArgMatches, cfg: Option<GlobalConfig>) -> Result<()> {
-    let MediaOpts {
+pub fn interactive_play(
+    PlayCmd {
+        case_insensitive_filter,
+        directory,
+        player,
         random,
-        files_dir,
         filter,
-        media_player,
         ..
-    } = unwrap_matches(matches).ok_or(anyhow!("No query provided"))?;
-
-    let mut media_files = if !matches.is_present("case-insensitive-filter") {
-        fetch_file_list(&files_dir, random, filter, media_player.valid_exts())
+    }: PlayCmd,
+    cfg: Option<GlobalConfig>,
+) -> Result<()> {
+    let mut media_files = if !case_insensitive_filter {
+        fetch_file_list(&directory, random, filter, player.valid_exts())
     } else {
         fetch_file_list(
-            &files_dir,
+            &directory,
             random,
             filter.map(|f| f.to_lowercase()),
-            media_player.valid_exts(),
+            player.valid_exts(),
         )
     }?;
     let media_files_ref = RefCell::from(&mut media_files);
@@ -121,9 +93,9 @@ pub fn interactive(matches: &clap::ArgMatches, cfg: Option<GlobalConfig>) -> Res
     match last_entered_char {
         '\n' => {
             if let Some(config) = cfg {
-                media_player.try_exec_override(media_files, &config)
+                player.try_exec_override(media_files, &config)
             } else {
-                run_cmd!(@ media_player.get_bin() => media_files)
+                run_cmd!(@ player.get_bin() => media_files)
             }
         }
         _ => Ok(()),

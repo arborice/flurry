@@ -1,18 +1,7 @@
-use crate::{
-    prelude::*,
-    tui::{
-        events::{Event, EventCap, Events},
-        widgets::popup::PopupOpts,
-    },
-};
-use termion::{
-    event::Key,
-    input::MouseTerminal,
-    raw::{IntoRawMode, RawTerminal},
-    screen::AlternateScreen,
-};
+use crate::tui::{events::EventCap, widgets::popup::PopupOpts};
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use tinyvec::{array_vec, ArrayVec};
-use tui::{backend::TermionBackend, style::Style, Terminal};
+use tui::style::Style;
 
 pub type Ec = [EventCap; 3];
 pub type EventArray = ArrayVec<Ec>;
@@ -30,9 +19,9 @@ impl Default for TuiInputHandler {
         TuiInputHandler {
             accept: array_vec!(Ec => EventCap::with_key('y')),
             exit: array_vec!(Ec => EventCap::with_key('q'), EventCap::ctrl_c()),
-            reject: array_vec!(Ec => EventCap::with_key('n'), EventCap::Key(Key::Esc)),
+            reject: array_vec!(Ec => EventCap::with_key('n'), EventCap::Key(KeyEvent::from(KeyCode::Esc))),
             select: array_vec!(Ec => EventCap::with_key(' '), EventCap::with_key('\n'), EventCap::LeftClick),
-            unselect: array_vec!(Ec => EventCap::with_key('u'), EventCap::with_key('r'), EventCap::Key(Key::Delete)),
+            unselect: array_vec!(Ec => EventCap::with_key('u'), EventCap::with_key('r'), EventCap::Key(KeyEvent::from(KeyCode::Delete))),
         }
     }
 }
@@ -64,12 +53,7 @@ pub enum TuiCallback<F: FnMut(usize)> {
     NonHalting(F),
 }
 
-type FlurryTerminal =
-    Terminal<TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<std::io::Stdout>>>>>;
-
 pub struct TuiOpts<'opts, F: FnMut(usize)> {
-    pub events: Events,
-    pub terminal: FlurryTerminal,
     pub popup_options: Option<&'opts PopupOpts<'opts>>,
     pub callback: TuiCallback<F>,
     pub selected_style: Option<Style>,
@@ -77,25 +61,13 @@ pub struct TuiOpts<'opts, F: FnMut(usize)> {
 }
 
 impl<'opts, F: FnMut(usize)> TuiOpts<'opts, F> {
-    pub fn new(
-        input_handler: TuiInputHandler,
-        events: Events,
-        callback: TuiCallback<F>,
-    ) -> Result<TuiOpts<'opts, F>> {
-        let stdout = std::io::stdout().into_raw_mode()?;
-        let mouse_term = MouseTerminal::from(stdout);
-        let alt_screen = AlternateScreen::from(mouse_term);
-        let termionated = TermionBackend::new(alt_screen);
-        let terminal = Terminal::new(termionated)?;
-
-        Ok(Self {
-            events,
-            terminal,
+    pub fn new(input_handler: TuiInputHandler, callback: TuiCallback<F>) -> TuiOpts<'opts, F> {
+        Self {
             popup_options: None,
             selected_style: None,
             callback,
             input_handler,
-        })
+        }
     }
 
     pub fn with_popup(mut self, opts: &'opts PopupOpts<'opts>) -> Self {

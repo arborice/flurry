@@ -16,15 +16,27 @@ impl<'util> AliasedProgram<'util, 'util> for GenericUtil<'util> {
         self.aliases.clone()
     }
 
-    fn is_override(&self, _over_ride: &Self::Alias) -> bool {
-        false
+    fn is_override(&self, over_ride: &Self::Alias) -> bool {
+        if let Some(aliases) = &self.aliases {
+            aliases.contains(over_ride)
+        } else {
+            false
+        }
     }
 }
 
-impl<'util> ProgramExec<'util, 'util> for GenericUtil<'util> {
-    type Args = Vec<&'static str>;
+impl GenericUtil<'_> {
+    pub fn try_exec(&self) -> Result<()> {
+        let GenericUtil {
+            bin,
+            args,
+            aliases,
+            permissions,
+            query_which,
+            sanitizer,
+            scan_dir,
+        } = self;
 
-    fn try_exec_override(&self, args: Self::Args, cfg: &GlobalConfig) -> Result<()> {
         Ok(())
     }
 }

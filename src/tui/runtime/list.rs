@@ -1,7 +1,6 @@
 use crate::{
     prelude::*,
     tui::{
-        events::Event,
         layouts::list::main_layout,
         opts::{TuiCallback, TuiOpts},
         widgets::{
@@ -10,7 +9,16 @@ use crate::{
         },
     },
 };
-use termion::event::{Key, MouseButton, MouseEvent};
+use crossterm::{
+    event::{
+        DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+        MouseButton, MouseEvent, MouseEventKind,
+    },
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::sync::mpsc;
+use tui::{backend::CrosstermBackend, Terminal};
 
 fn callback_handler<F: FnMut(usize), T: ListEntry>(
     stateful_list: &StatefulList<T>,
@@ -34,11 +42,9 @@ fn callback_handler<F: FnMut(usize), T: ListEntry>(
 
 pub fn render<'opts, 'items, F: FnMut(usize), T: ListEntry>(
     TuiOpts {
-        events,
         mut callback,
         popup_options,
         selected_style,
-        mut terminal,
         input_handler,
     }: TuiOpts<'opts, F>,
     list_items: &'items std::cell::RefCell<&'items mut Vec<T>>,
@@ -47,6 +53,15 @@ pub fn render<'opts, 'items, F: FnMut(usize), T: ListEntry>(
     let mut popup_visible = false;
     let mut last_pressed_char = 'q';
     let list_selections: &mut Vec<usize> = &mut vec![];
+
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let (_, rx) = mpsc::channel();
 
     loop {
         terminal.draw(|frame| {
@@ -67,12 +82,22 @@ pub fn render<'opts, 'items, F: FnMut(usize), T: ListEntry>(
             }
         })?;
 
-        let last_input = events.next()?;
-        if let Event::KeyPress(Key::Char(k)) = last_input {
+        let last_input = rx.recv()?;
+        if let Event::Key(KeyEvent {
+            code: KeyCode::Char(k),
+            ..
+        }) = last_input
+        {
             last_pressed_char = k;
-        } else if let Event::Mouse(MouseEvent::Press(MouseButton::Left, x, y)) = last_input {
-            terminal.set_cursor(x, y)?;
-            app.select(y as usize - 2);
+        } else if let Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            ..
+        }) = last_input
+        {
+            terminal.set_cursor(column, row)?;
+            app.select(row as usize - 2);
         }
 
         match last_input {
@@ -115,14 +140,30 @@ pub fn render<'opts, 'items, F: FnMut(usize), T: ListEntry>(
                     list_selections.retain(|s| *s != selected_index);
                 }
             }
-            e if input_handler.is_exit_trigger(&e) => break,
-            Event::KeyPress(key) => match key {
-                Key::Down => app.next(),
-                Key::Up => app.previous(),
+            e if input_handler.is_exit_trigger(&e) => {
+                disable_raw_mode()?;
+                execute!(
+                    terminal.backend_mut(),
+                    LeaveAlternateScreen,
+                    DisableMouseCapture
+                )?;
+                terminal.show_cursor()?;
+                break;
+            }
+            Event::Key(KeyEvent { code, modifiers }) => {
+                if modifiers == KeyModifiers::NONE {
+                    match code {
+                        KeyCode::Down => app.next(),
+                        KeyCode::Up => app.previous(),
+                        _ => {}
+                    }
+                }
+            }
+            Event::Mouse(MouseEvent { kind, .. }) => match kind {
+                MouseEventKind::ScrollDown => app.next(),
+                MouseEventKind::ScrollUp => app.previous(),
                 _ => {}
             },
-            Event::Mouse(MouseEvent::Press(MouseButton::WheelDown, ..)) => app.next(),
-            Event::Mouse(MouseEvent::Press(MouseButton::WheelUp, ..)) => app.previous(),
             _ => {}
         }
     }

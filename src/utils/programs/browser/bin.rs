@@ -1,5 +1,4 @@
 use crate::{
-    config::types::*,
     prelude::*,
     utils::programs::browser::{aliases::*, run::*},
 };
@@ -98,11 +97,6 @@ impl ProgramExec<'_, '_> for WebBrowser {
 }
 
 impl WebBrowser {
-    pub fn from_matches(matches: &clap::ArgMatches) -> Option<Self> {
-        let given_query = matches.value_of("program")?;
-        <Self>::try_from_str(given_query)
-    }
-
     pub fn default_from_config(cfg: &GlobalConfig) -> Option<Self> {
         let dfl_browser = cfg.default_browser?;
         <Self>::try_from_str(dfl_browser)

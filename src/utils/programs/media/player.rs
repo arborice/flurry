@@ -1,4 +1,4 @@
-use crate::{config::types::*, prelude::*, utils::os::linux::desktop_file_to_exec};
+use crate::{prelude::*, utils::os::linux::desktop_file_to_exec};
 use std::path::PathBuf;
 
 #[derive(Clone, PartialEq)]
@@ -48,13 +48,6 @@ impl ProgramExec<'_, '_> for Player {
 }
 
 impl Player {
-    pub fn from_matches(matches: &clap::ArgMatches) -> Self {
-        if let Some(media_player) = matches.value_of("player") {
-            return <Self>::from_str(media_player);
-        }
-        Self::not_found("No media type provided")
-    }
-
     fn try_query_mime(&self) -> Result<String> {
         let mime_query = match self {
             Player::Audio => "audio/mp3",

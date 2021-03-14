@@ -1,4 +1,4 @@
-use crate::{config::types::*, prelude::*};
+use crate::{cli::argh::ImportCmd, config::types::*, prelude::*};
 
 fn duplicate_checker<'cmds>(
 	all_cmds: &mut Vec<GeneratedCommand<'cmds>>,
@@ -23,8 +23,7 @@ fn duplicate_checker<'cmds>(
 	}
 }
 
-pub fn import_cmds_from_file(matches: &clap::ArgMatches) -> Result<()> {
-	let file_path = matches.value_of("file").seppuku("File is required!");
+pub fn import_cmds_from_file(ImportCmd { file_path }: ImportCmd) -> Result<()> {
 	let config_path = ConfigPath::Commands.abs();
 
 	let file_contents = read_to_string(file_path)?;

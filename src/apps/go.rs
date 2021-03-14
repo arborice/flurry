@@ -1,7 +1,10 @@
-use crate::{config::types::*, prelude::*};
+use crate::{cli::argh::GoCmd, config::types::*, prelude::*};
 
-fn safe_unwrap_browser(args: &clap::ArgMatches, cfg: &Option<GlobalConfig>) -> WebBrowser {
-    WebBrowser::from_matches(args)
+fn unwrap_browser_infallible(
+    browser_query: Option<WebBrowser>,
+    cfg: &Option<GlobalConfig>,
+) -> WebBrowser {
+    browser_query
         .or_else(|| {
             if let Some(config) = cfg {
                 WebBrowser::default_from_config(config)
@@ -12,18 +15,14 @@ fn safe_unwrap_browser(args: &clap::ArgMatches, cfg: &Option<GlobalConfig>) -> W
         .unwrap_or_default()
 }
 
-pub fn dispatch_from_matches(
-    args: &clap::ArgMatches,
+pub fn dispatch_from_args(
+    args: GoCmd,
     cmds: GeneratedCommands,
     cfg: Option<GlobalConfig>,
 ) -> Result<()> {
-    let query = args
-        .value_of("command")
-        .ok_or(anyhow!("No query provided"))?;
-
     if let Some(cmds) = cmds.commands {
         for cmd in &cmds {
-            if cmd.key == query {
+            if cmd.key.eq_ignore_ascii_case(&args.command) {
                 return dispatch_command(args, cmd, &cfg);
             }
         }
@@ -33,30 +32,27 @@ pub fn dispatch_from_matches(
 }
 
 fn dispatch_command(
-    args: &clap::ArgMatches,
+    GoCmd {
+        browser, queries, ..
+    }: GoCmd,
     cmd: &GeneratedCommand,
     cfg: &Option<GlobalConfig>,
 ) -> Result<()> {
-    match cmd.cmd_type {
+    match cmd.command_type {
         CommandType::Url => {
-            let browser = safe_unwrap_browser(args, cfg);
-            open_target_url(browser, cmd.target, cfg)
+            let browser = unwrap_browser_infallible(browser, cfg);
+            open_target_url(&browser, cmd.target, cfg)
         }
         CommandType::WebQuery => {
-            let browser = safe_unwrap_browser(args, cfg);
-            let url_queries = args
-                .values_of("queries")
-                .seppuku("No web queries provided!")
-                .collect::<Vec<&str>>();
-
-            open_target_url_with_args(browser, cmd.target, url_queries, cfg)
+            let browser = unwrap_browser_infallible(browser, cfg);
+            open_target_url_with_args(&browser, cmd.target, &queries, cfg)
         }
-        CommandType::Util => todo!("goto <Util> type implementation"),
+        CommandType::Util { .. } => todo!("goto <Util> type implementation"),
     }
 }
 
 fn open_target_url<S: AsRef<str>>(
-    browser: WebBrowser,
+    browser: &WebBrowser,
     url: S,
     cfg: &Option<GlobalConfig>,
 ) -> Result<()> {
@@ -69,9 +65,9 @@ fn open_target_url<S: AsRef<str>>(
 }
 
 fn open_target_url_with_args<S: AsRef<str>>(
-    browser: WebBrowser,
+    browser: &WebBrowser,
     url: S,
-    args: Vec<&str>,
+    args: &Vec<String>,
     cfg: &Option<GlobalConfig>,
 ) -> Result<()> {
     let url = encode_url(format!("{}{}", url.as_ref(), args.join(" ")));
@@ -83,8 +79,10 @@ fn open_target_url_with_args<S: AsRef<str>>(
     Ok(())
 }
 
-pub fn interactive(
-    args: &clap::ArgMatches,
+pub fn interactive_go(
+    GoCmd {
+        browser, queries, ..
+    }: GoCmd,
     mut cmds: GeneratedCommands,
     cfg: Option<GlobalConfig>,
 ) -> Result<()> {
@@ -94,20 +92,23 @@ pub fn interactive(
         let cmds_list = RefCell::from(cmds_list);
 
         let input_handler = TuiInputHandler::default();
-        let event_loop = Events::with_exit_triggers(&input_handler.exit);
+        let browser = unwrap_browser_infallible(browser, &cfg);
 
         let opener = TuiCallback::Halting(|index| {
             let cmd = &cmds_list.borrow()[index];
-            if let CommandType::Url = cmd.cmd_type {
-                let browser = safe_unwrap_browser(args, &cfg);
-                open_target_url(browser, cmd.target, &cfg).seppuku(None);
+            match cmd.command_type {
+                CommandType::Url => open_target_url(&browser, cmd.target, &cfg),
+                CommandType::WebQuery => {
+                    open_target_url_with_args(&browser, cmd.target, &queries, &cfg)
+                }
+                CommandType::Util { .. } => todo!("goto <Util> type implementation"),
             }
+            .seppuku(None)
         });
 
-        let term_opts = TuiOpts::new(input_handler, event_loop, opener)?;
+        let term_opts = TuiOpts::new(input_handler, opener);
         render(term_opts, &cmds_list)?;
-        Ok(())
-    } else {
-        Err(anyhow!("No commands yet!"))
+        return Ok(());
     }
+    bail!("No commands yet!")
 }

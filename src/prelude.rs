@@ -1,7 +1,7 @@
 // macros
 pub use super::{run_cmd, seppuku};
 // crate utils
-pub use super::config::{read::ConfigPath, types::GlobalConfig};
+pub use super::config::{read::ConfigPath, types::*};
 pub use super::utils::{
     ensure_root,
     os::query_stdin,

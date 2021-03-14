@@ -3,35 +3,39 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize)]
-pub struct ProgramOverride<'a> {
-	pub cmd: &'a str,
-	pub args: Option<Vec<&'a str>>,
+pub struct ProgramOverride<'c> {
+	pub cmd: &'c str,
+	pub args: Option<Vec<&'c str>>,
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct MediaPlayerOverride<'a> {
-	pub bin: &'a str,
-	pub args: Option<Vec<&'a str>>,
+pub struct MediaPlayerOverride<'c> {
+	pub bin: &'c str,
+	pub args: Option<Vec<&'c str>>,
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct GenericUtil<'a> {
-	pub bin: &'a str,
-	pub args: Option<Vec<&'a str>>,
-	pub aliases: Option<Vec<&'a str>>,
+pub struct GenericUtil<'c> {
+	pub bin: &'c str,
+	pub args: Option<Vec<&'c str>>,
+	pub aliases: Option<Vec<&'c str>>,
+	pub sanitizer: Option<&'c str>,
+	pub permissions: bool,
+	pub query_which: bool,
+	pub scan_dir: bool,
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct GlobalConfig<'a> {
-	pub default_browser: Option<&'a str>,
+pub struct GlobalConfig<'c> {
+	pub default_browser: Option<&'c str>,
 	#[serde(borrow, rename = "player")]
-	pub media_players: Option<HashMap<&'a str, MediaPlayerOverride<'a>>>,
+	pub media_players: Option<HashMap<&'c str, MediaPlayerOverride<'c>>>,
 	#[serde(borrow, rename = "override")]
-	pub overrides: Option<Vec<ProgramOverride<'a>>>,
+	pub overrides: Option<Vec<ProgramOverride<'c>>>,
 }
 
-impl<'a> Default for GlobalConfig<'a> {
-	fn default() -> GlobalConfig<'a> {
+impl<'c> Default for GlobalConfig<'c> {
+	fn default() -> GlobalConfig<'c> {
 		let mut media_players = HashMap::new();
 		media_players.insert(
 			"audio",
@@ -70,19 +74,33 @@ impl<'a> Default for GlobalConfig<'a> {
 #[serde(rename_all = "kebab-case")]
 pub enum CommandType {
 	Url,
-	Util,
 	WebQuery,
+	Util {
+		permissions: bool,
+		scan_dir: bool,
+		query_which: bool,
+	},
+}
+
+impl Default for CommandType {
+	fn default() -> CommandType {
+		CommandType::Util {
+			permissions: false,
+			scan_dir: false,
+			query_which: false,
+		}
+	}
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
-pub struct GeneratedCommand<'a> {
-	pub key: &'a str,
-	pub target: &'a str,
+pub struct GeneratedCommand<'c> {
+	pub key: &'c str,
+	pub target: &'c str,
 	#[serde(rename = "type")]
-	pub cmd_type: CommandType,
+	pub command_type: CommandType,
 }
 
-impl<'a> ListEntry for GeneratedCommand<'a> {
+impl<'c> ListEntry for GeneratedCommand<'c> {
 	fn as_context(&self) -> &str {
 		self.key
 	}
@@ -93,17 +111,17 @@ impl<'a> ListEntry for GeneratedCommand<'a> {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct GeneratedCommands<'a> {
+pub struct GeneratedCommands<'c> {
 	#[serde(borrow, rename = "command")]
-	pub commands: Option<Vec<GeneratedCommand<'a>>>,
+	pub commands: Option<Vec<GeneratedCommand<'c>>>,
 }
 
-impl<'a> Default for GeneratedCommands<'a> {
-	fn default() -> GeneratedCommands<'a> {
+impl<'c> Default for GeneratedCommands<'c> {
+	fn default() -> GeneratedCommands<'c> {
 		let sample_cmd = GeneratedCommand {
 			key: "duck",
 			target: "https://www.duckduckgo.com",
-			cmd_type: CommandType::Url,
+			command_type: CommandType::Url,
 		};
 		GeneratedCommands {
 			commands: Some(vec![sample_cmd]),
