@@ -27,13 +27,13 @@ fn main() -> Result<()> {
 	}?;
 	let cmds = static_cmds(&cmds_file)?;
 
-	let flurry_app: cli::argh::Flurry = argh::from_env();
+	let flurry_app: cli::types::Flurry = argh::from_env();
 	match var_os("FLURRY_CFG_PATH") {
 		Some(cfg_path) => {
 			let cfg_file = read_to_string(cfg_path)?;
 			let cfg = global_config(&cfg_file).ok();
-			cli::argh::exec_cli(flurry_app, cmds, cfg)
+			cli::exec_cli(flurry_app, cmds, cfg)
 		}
-		None => cli::argh::exec_cli(flurry_app, cmds, None),
+		None => cli::exec_cli(flurry_app, cmds, None),
 	}
 }

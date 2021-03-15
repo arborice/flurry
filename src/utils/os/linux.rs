@@ -9,7 +9,7 @@ pub fn desktop_file_to_exec(mime_dfl: String) -> Result<String> {
     match find_exec_by_bytes(global_install) {
         Some(res) => Ok(res),
         _ => {
-            let mut local_desktop_file_path = home();
+            let mut local_desktop_file_path = super::home();
             local_desktop_file_path.push(".local/share/applications/");
             local_desktop_file_path.push(desktop_file);
             let local_install = read(local_desktop_file_path)?;

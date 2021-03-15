@@ -1,7 +1,10 @@
-> init procedure
+> finish util implementation for cli + tui
 > -
-> - missing dotfiles write fn call on first run
-> - missing shell completions *(**panics** w/ subcommands from clap bug, will have to process app by app)*
+
+> compare clap vs argh performance
+> -
+> - clap version three commits behind argh
+> - potentially fork or branch clap version; *maybe switch to v3*
 
 <br/>
 

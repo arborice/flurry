@@ -1,12 +1,12 @@
 use crate::{
     prelude::*,
     tui::{
-        layouts::list::main_layout,
-        opts::{TuiCallback, TuiOpts},
+        layouts::list_layout,
         widgets::{
             list::{ListEntry, StatefulList},
             popup::render_popup,
         },
+        TuiCallback, TuiOpts,
     },
 };
 use crossterm::{
@@ -65,7 +65,7 @@ pub fn render<'opts, 'items, F: FnMut(usize), T: ListEntry>(
 
     loop {
         terminal.draw(|frame| {
-            let layout = main_layout(frame);
+            let layout = list_layout(frame);
             let items_list = match list_selections.is_empty() {
                 false => {
                     app.styled_tui_list(selected_style.seppuku("style missing :("), list_selections)

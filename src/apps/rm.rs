@@ -1,5 +1,5 @@
 use crate::{
-    cli::argh::RmCmd,
+    cli::types::RmCmd,
     config::{types::*, write::over_write_cmds},
     prelude::*,
     tui::prelude::*,
@@ -7,11 +7,10 @@ use crate::{
 
 pub fn try_rm_cmd(RmCmd { key, .. }: RmCmd, mut gen_cmds: GeneratedCommands) -> Result<()> {
     let key = key.seppuku("No command key provided!");
-    if let Some(mut cmds) = gen_cmds.commands {
+    if let Some(ref mut cmds) = gen_cmds.commands {
         for (i, cmd) in cmds.iter().enumerate() {
             if key.eq_ignore_ascii_case(cmd.key) {
                 cmds.remove(i);
-                gen_cmds.commands = Some(cmds);
                 return over_write_cmds(gen_cmds);
             }
         }
@@ -35,7 +34,7 @@ pub fn interactive_rm(mut gen_cmds: GeneratedCommands) -> Result<()> {
         });
         match render(term_opts, &cmds_list)? {
             '\n' | ' ' => over_write_cmds(gen_cmds),
-            _ => Ok(()),
+            _ => bail!("Operation cancelled. Commands were NOT removed."),
         }
     } else {
         bail!("No commands yet!")

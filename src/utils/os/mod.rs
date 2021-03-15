@@ -17,3 +17,7 @@ pub fn query_stdin(query: &str) -> Option<String> {
         Some(buffer)
     }
 }
+
+pub fn home() -> std::path::PathBuf {
+    home::home_dir().expect("Unable to find user home")
+}

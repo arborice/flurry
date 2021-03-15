@@ -1,18 +1,24 @@
-use crate::{cli::argh::GoCmd, config::types::*, prelude::*};
+use crate::{
+    cli::types::{GoCmd, ProgKind},
+    config::types::*,
+    prelude::*,
+    utils::programs::browser::{encode_url, run::web_query, WebBrowser},
+};
 
 fn unwrap_browser_infallible(
-    browser_query: Option<WebBrowser>,
+    browser_query: Option<ProgKind>,
     cfg: &Option<GlobalConfig>,
 ) -> WebBrowser {
-    browser_query
-        .or_else(|| {
-            if let Some(config) = cfg {
-                WebBrowser::default_from_config(config)
-            } else {
-                None
-            }
-        })
+    if let Some(ProgKind::Web(Some(program))) = browser_query {
+        program
+    } else {
+        if let Some(config) = cfg {
+            WebBrowser::default_from_config(config)
+        } else {
+            None
+        }
         .unwrap_or_default()
+    }
 }
 
 pub fn dispatch_from_args(
@@ -20,69 +26,79 @@ pub fn dispatch_from_args(
     cmds: GeneratedCommands,
     cfg: Option<GlobalConfig>,
 ) -> Result<()> {
-    if let Some(cmds) = cmds.commands {
-        for cmd in &cmds {
-            if cmd.key.eq_ignore_ascii_case(&args.command) {
-                return dispatch_command(args, cmd, &cfg);
+    match &args.program {
+        Some(ProgKind::Generic(Some(util))) => {
+            if let Some(utils) = cmds.utils {
+                for u in &utils {
+                    if u == util {
+                        todo!("finish util impl");
+                        return Ok(());
+                    }
+                }
             }
         }
+        Some(_) => {
+            if let Some(cmds) = cmds.commands {
+                for cmd in &cmds {
+                    if cmd.key.eq_ignore_ascii_case(&args.command) {
+                        return dispatch_command(args, cmd, &cfg);
+                    }
+                }
+            }
+        }
+        None => {}
     }
-
     bail!("No command with that trigger")
 }
 
 fn dispatch_command(
-    GoCmd {
-        browser, queries, ..
-    }: GoCmd,
+    GoCmd { program, args, .. }: GoCmd,
     cmd: &GeneratedCommand,
     cfg: &Option<GlobalConfig>,
 ) -> Result<()> {
     match cmd.command_type {
         CommandType::Url => {
-            let browser = unwrap_browser_infallible(browser, cfg);
-            open_target_url(&browser, cmd.target, cfg)
+            let program = unwrap_browser_infallible(program, cfg);
+            open_target_url(&program, cmd.target, cfg)
         }
         CommandType::WebQuery => {
-            let browser = unwrap_browser_infallible(browser, cfg);
-            open_target_url_with_args(&browser, cmd.target, &queries, cfg)
+            let program = unwrap_browser_infallible(program, cfg);
+            open_target_url_with_queries(&program, cmd.target, &args, cfg)
         }
-        CommandType::Util { .. } => todo!("goto <Util> type implementation"),
+        CommandType::Util { .. } => unreachable!(),
     }
 }
 
 fn open_target_url<S: AsRef<str>>(
-    browser: &WebBrowser,
+    program: &WebBrowser,
     url: S,
     cfg: &Option<GlobalConfig>,
 ) -> Result<()> {
     let url = encode_url(url);
     if let Some(config) = cfg {
-        browser.try_exec_override(url, config)
+        program.try_exec_override(url, config)
     } else {
-        web_query(&browser, url)
+        web_query(&program, url)
     }
 }
 
-fn open_target_url_with_args<S: AsRef<str>>(
-    browser: &WebBrowser,
+fn open_target_url_with_queries<S: AsRef<str>>(
+    program: &WebBrowser,
     url: S,
     args: &Vec<String>,
     cfg: &Option<GlobalConfig>,
 ) -> Result<()> {
     let url = encode_url(format!("{}{}", url.as_ref(), args.join(" ")));
     if let Some(config) = cfg {
-        browser.try_exec_override(url, config)
+        program.try_exec_override(url, config)
     } else {
-        run_cmd!(@ browser.get_bin(); url)
+        run_cmd!(@ program.get_bin(); url)
     }?;
     Ok(())
 }
 
 pub fn interactive_go(
-    GoCmd {
-        browser, queries, ..
-    }: GoCmd,
+    GoCmd { program, args, .. }: GoCmd,
     mut cmds: GeneratedCommands,
     cfg: Option<GlobalConfig>,
 ) -> Result<()> {
@@ -92,16 +108,16 @@ pub fn interactive_go(
         let cmds_list = RefCell::from(cmds_list);
 
         let input_handler = TuiInputHandler::default();
-        let browser = unwrap_browser_infallible(browser, &cfg);
+        let program = unwrap_browser_infallible(program, &cfg);
 
         let opener = TuiCallback::Halting(|index| {
             let cmd = &cmds_list.borrow()[index];
             match cmd.command_type {
-                CommandType::Url => open_target_url(&browser, cmd.target, &cfg),
+                CommandType::Url => open_target_url(&program, cmd.target, &cfg),
                 CommandType::WebQuery => {
-                    open_target_url_with_args(&browser, cmd.target, &queries, &cfg)
+                    open_target_url_with_queries(&program, cmd.target, &args, &cfg)
                 }
-                CommandType::Util { .. } => todo!("goto <Util> type implementation"),
+                CommandType::Util { .. } => unreachable!(),
             }
             .seppuku(None)
         });

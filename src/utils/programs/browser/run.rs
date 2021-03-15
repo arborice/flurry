@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, utils::programs::browser::WebBrowser};
 use std::{
     ffi::OsStr,
     process::{Command, Stdio},

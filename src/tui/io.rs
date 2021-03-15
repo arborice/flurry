@@ -1,7 +1,5 @@
-use crate::tui::{events::EventCap, widgets::popup::PopupOpts};
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use tinyvec::{array_vec, ArrayVec};
-use tui::style::Style;
 
 pub type Ec = [EventCap; 3];
 pub type EventArray = ArrayVec<Ec>;
@@ -48,35 +46,54 @@ impl TuiInputHandler {
     }
 }
 
-pub enum TuiCallback<F: FnMut(usize)> {
-    Halting(F),
-    NonHalting(F),
+#[derive(Clone, PartialEq, Eq)]
+pub enum EventCap {
+    Key(KeyEvent),
+    LeftClick,
+    #[allow(dead_code)]
+    RightClick,
 }
 
-pub struct TuiOpts<'opts, F: FnMut(usize)> {
-    pub popup_options: Option<&'opts PopupOpts<'opts>>,
-    pub callback: TuiCallback<F>,
-    pub selected_style: Option<Style>,
-    pub input_handler: TuiInputHandler,
+impl Default for EventCap {
+    fn default() -> EventCap {
+        EventCap::Key(KeyEvent::from(KeyCode::Null))
+    }
 }
 
-impl<'opts, F: FnMut(usize)> TuiOpts<'opts, F> {
-    pub fn new(input_handler: TuiInputHandler, callback: TuiCallback<F>) -> TuiOpts<'opts, F> {
-        Self {
-            popup_options: None,
-            selected_style: None,
-            callback,
-            input_handler,
+impl EventCap {
+    pub fn with_key(key: char) -> Self {
+        Self::Key(KeyEvent::from(KeyCode::Char(key)))
+    }
+
+    pub fn ctrl_c() -> Self {
+        Self::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL))
+    }
+}
+
+impl PartialEq<Event> for EventCap {
+    fn eq(&self, event: &Event) -> bool {
+        match self {
+            EventCap::Key(key) => {
+                if let Event::Key(ke) = event {
+                    ke == key
+                } else {
+                    false
+                }
+            }
+            EventCap::LeftClick => {
+                if let Event::Mouse(me) = event {
+                    me.kind == MouseEventKind::Down(MouseButton::Left)
+                } else {
+                    false
+                }
+            }
+            EventCap::RightClick => {
+                if let Event::Mouse(me) = event {
+                    me.kind == MouseEventKind::Down(MouseButton::Right)
+                } else {
+                    false
+                }
+            }
         }
-    }
-
-    pub fn with_popup(mut self, opts: &'opts PopupOpts<'opts>) -> Self {
-        self.popup_options = Some(opts);
-        self
-    }
-
-    pub fn with_selection_highlighter(mut self, style: Style) -> Self {
-        self.selected_style = Some(style);
-        self
     }
 }

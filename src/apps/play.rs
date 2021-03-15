@@ -1,5 +1,8 @@
 use crate::{
-    cli::argh::PlayCmd, prelude::*, tui::prelude::*, utils::fs::recursive::fetch_file_list,
+    cli::types::PlayCmd,
+    prelude::*,
+    tui::prelude::*,
+    utils::fs::recursive::{fetch_file_list, FilterKind},
 };
 
 impl ListEntry for std::path::PathBuf {
@@ -23,16 +26,20 @@ pub fn exec_media_from_args(
     }: PlayCmd,
     cfg: Option<GlobalConfig>,
 ) -> Result<()> {
-    let media_files = if !case_insensitive_filter {
-        fetch_file_list(&directory, random, filter, player.valid_exts())
-    } else {
-        fetch_file_list(
-            &directory,
-            random,
-            filter.map(|f| f.to_lowercase()),
-            player.valid_exts(),
-        )
-    }?;
+    let filter = match filter {
+        Some(mut pat) => {
+            if case_insensitive_filter {
+                pat.make_ascii_lowercase();
+            }
+            FilterKind::Dual {
+                eq_filter: pat,
+                ext_filter: Some(player.valid_exts()),
+            }
+        }
+        None => FilterKind::Exts(player.valid_exts()),
+    };
+
+    let media_files = fetch_file_list(&directory, random, &filter)?;
     println!("Opening {}", directory.display());
 
     if let Some(config) = cfg {
@@ -69,27 +76,29 @@ pub fn interactive_play(
     }: PlayCmd,
     cfg: Option<GlobalConfig>,
 ) -> Result<()> {
-    let mut media_files = if !case_insensitive_filter {
-        fetch_file_list(&directory, random, filter, player.valid_exts())
-    } else {
-        fetch_file_list(
-            &directory,
-            random,
-            filter.map(|f| f.to_lowercase()),
-            player.valid_exts(),
-        )
-    }?;
+    let filter = match filter {
+        Some(mut pat) => {
+            if case_insensitive_filter {
+                pat.make_ascii_lowercase();
+            }
+            FilterKind::Dual {
+                eq_filter: pat,
+                ext_filter: Some(player.valid_exts()),
+            }
+        }
+        None => FilterKind::Exts(player.valid_exts()),
+    };
+
+    let mut media_files = fetch_file_list(&directory, random, &filter)?;
     let media_files_ref = RefCell::from(&mut media_files);
 
     let mut playlist = vec![];
-    let opts = tui_opts(|index| {
-        playlist.push(index);
-    })?;
+    let opts = tui_opts(|index| playlist.push(index))?;
 
     let last_entered_char = render(opts, &media_files_ref)?;
 
-    let mut i = 0;
-    media_files.retain(|_| (playlist.contains(&i), i += 1).0);
+    let mut x = 0;
+    media_files.retain(|_| (playlist.contains(&x), x += 1).0);
     match last_entered_char {
         '\n' => {
             if let Some(config) = cfg {

@@ -1,4 +1,4 @@
-use crate::tui::prelude::ListEntry;
+use crate::{tui::prelude::ListEntry, utils::programs::generic::GenericUtil};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -12,17 +12,6 @@ pub struct ProgramOverride<'c> {
 pub struct MediaPlayerOverride<'c> {
 	pub bin: &'c str,
 	pub args: Option<Vec<&'c str>>,
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct GenericUtil<'c> {
-	pub bin: &'c str,
-	pub args: Option<Vec<&'c str>>,
-	pub aliases: Option<Vec<&'c str>>,
-	pub sanitizer: Option<&'c str>,
-	pub permissions: bool,
-	pub query_which: bool,
-	pub scan_dir: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -74,21 +63,14 @@ impl<'c> Default for GlobalConfig<'c> {
 #[serde(rename_all = "kebab-case")]
 pub enum CommandType {
 	Url,
+	/// marker only
+	Util,
 	WebQuery,
-	Util {
-		permissions: bool,
-		scan_dir: bool,
-		query_which: bool,
-	},
 }
 
-impl Default for CommandType {
+impl<'c> Default for CommandType {
 	fn default() -> CommandType {
-		CommandType::Util {
-			permissions: false,
-			scan_dir: false,
-			query_which: false,
-		}
+		CommandType::Url
 	}
 }
 
@@ -114,6 +96,8 @@ impl<'c> ListEntry for GeneratedCommand<'c> {
 pub struct GeneratedCommands<'c> {
 	#[serde(borrow, rename = "command")]
 	pub commands: Option<Vec<GeneratedCommand<'c>>>,
+	#[serde(borrow, rename = "util")]
+	pub utils: Option<Vec<GenericUtil<'c>>>,
 }
 
 impl<'c> Default for GeneratedCommands<'c> {
@@ -125,6 +109,7 @@ impl<'c> Default for GeneratedCommands<'c> {
 		};
 		GeneratedCommands {
 			commands: Some(vec![sample_cmd]),
+			utils: None,
 		}
 	}
 }
