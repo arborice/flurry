@@ -19,12 +19,15 @@ fn static_cmds<'global>(ser_cmds: &'global str) -> Result<GeneratedCommands<'glo
 
 fn main() -> Result<()> {
 	use std::env::var_os;
-	// let cmds_path = var_os("FLURRY_CMDS_PATH").seppuku("CMDS PATH MISSING");
-	let cmds_file = match read_to_string("/home/hal9000/.config/hal/commands.toml") {
-		Ok(file) => Ok(file),
-		Err(e) if e.kind() == FileNotFound => config::write::init_cfg_if_not_exists(),
-		Err(e) => bail!(e),
-	}?;
+	let cmds_path = var_os("FLURRY_CMDS_PATH").unwrap_or(ConfigPath::Commands.abs().into());
+	let cmds_file: String = match read_to_string(cmds_path) {
+		Ok(file) => file,
+		Err(e) if e.kind() == FileNotFound => {
+			config::write::init_cmds_if_not_exists()?;
+			String::new()
+		}
+		Err(e) => seppuku!(e),
+	};
 	let cmds = static_cmds(&cmds_file)?;
 
 	let flurry_app: cli::types::Flurry = argh::from_env();
@@ -34,6 +37,13 @@ fn main() -> Result<()> {
 			let cfg = global_config(&cfg_file).ok();
 			cli::exec_cli(flurry_app, cmds, cfg)
 		}
-		None => cli::exec_cli(flurry_app, cmds, None),
+		None => {
+			if let Ok(cfg_file) = read_to_string(ConfigPath::Config.abs()) {
+				let cfg = global_config(&cfg_file).ok();
+				cli::exec_cli(flurry_app, cmds, cfg)
+			} else {
+				cli::exec_cli(flurry_app, cmds, None)
+			}
+		}
 	}
 }

@@ -1,43 +1,22 @@
 use crate::prelude::*;
 use std::fs::create_dir_all;
 
-fn comment_all(content: &String) -> String {
-	let lines = content.lines();
-	let num_lines = lines.clone().count();
-	lines.fold(
-		String::with_capacity(content.capacity() + num_lines),
-		|mut cmt, ln| {
-			cmt.push('#');
-			cmt.push_str(ln);
-			cmt.push('\n');
-			cmt
-		},
-	)
-}
-
-fn setup_config_path() -> Result<String> {
-	// create default global config
-	let init_conf = GlobalConfig::default();
-	let ser_conf = toml::to_string(&init_conf)?;
-	let commented_conf = comment_all(&ser_conf);
-
-	create_dir_all(ConfigPath::Base.abs())?;
-	write(ConfigPath::Config.abs(), commented_conf)?;
-
-	// create commands file with initial instructions
-	let init_cmds = GeneratedCommands::default();
-	let ser_cmds = toml::to_string(&init_cmds)?;
-	let commented_cmds = comment_all(&ser_cmds);
-	write(ConfigPath::Commands.abs(), commented_cmds)?;
-
-	Ok(ser_cmds)
-}
-
-pub fn init_cfg_if_not_exists() -> Result<String> {
+pub fn init_cmds_if_not_exists() -> Result<()> {
 	if !ConfigPath::Base.abs().exists() {
-		setup_config_path()
+		create_dir_all(ConfigPath::Base.abs())?;
+		write(
+			ConfigPath::Commands.abs(),
+			"# see <github link> for sample commands or create some with the cli",
+		)?;
+		Ok(())
+	} else if !ConfigPath::Commands.abs().exists() {
+		write(
+			ConfigPath::Commands.abs(),
+			"# see <github link> for sample commands or create some with the cli",
+		)?;
+		Ok(())
 	} else {
-		bail!("Could not read or write config dir. Insufficient permissions?")
+		bail!("Could not read from config dir. Insufficient permissions?")
 	}
 }
 

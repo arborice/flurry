@@ -13,7 +13,7 @@ pub struct GenericUtil<'c> {
     pub scan_dir: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize, PartialEq)]
 pub struct UtilFromArgs {
     pub bin: String,
     #[serde(rename = "args")]
@@ -25,17 +25,23 @@ pub struct UtilFromArgs {
     pub scan_dir: bool,
 }
 
+impl PartialEq<GenericUtil<'_>> for String {
+    fn eq(&self, cfg_util: &GenericUtil) -> bool {
+        cfg_util.is_override(&self.as_ref()) || self == cfg_util.bin
+    }
+}
+
 use crate::cli::types::AddUtil;
 impl UtilFromArgs {
     pub fn from_args(
         AddUtil {
-            bin,
             aliases,
-            permissions,
-            scan_dir,
-            query_which,
-            sanitizer,
             args,
+            bin,
+            permissions,
+            query_which,
+            scan_dir,
+            sanitizer,
             ..
         }: AddUtil,
     ) -> UtilFromArgs {
@@ -97,7 +103,7 @@ use crate::{
 };
 
 impl GenericUtil<'_> {
-    pub fn try_exec(&self, GoCmd { args, random, .. }: GoCmd) -> Result<()> {
+    pub fn try_exec(&self, GoCmd { args, random, .. }: &GoCmd) -> Result<()> {
         let GenericUtil {
             dfl_args,
             permissions,
@@ -116,7 +122,7 @@ impl GenericUtil<'_> {
                 None => FilterKind::None,
             };
             let files_list = args.iter().fold(vec![], |mut list, a| {
-                match fetch_file_list(a, random, &filter) {
+                match fetch_file_list(a, *random, &filter) {
                     Ok(ref mut files) => list.append(files),
                     Err(e) => eprintln!("Error getting files for {}: {}", a, e),
                 }
@@ -135,9 +141,5 @@ impl GenericUtil<'_> {
         }
 
         Ok(())
-    }
-
-    pub fn try_query(query: &str) -> Self {
-        Self::not_found("")
     }
 }

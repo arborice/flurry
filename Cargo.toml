@@ -18,7 +18,7 @@ regex = "1.4.4"
 serde = { version = "1.0.123", features = ["derive"] }
 tinyvec = { version = "1.1.1", features = ["rustc_1_40"] }
 toml = "0.5.8"
-tui = { version = "0.14.0", features = ["crossterm"], default_features = false}
+tui = { version = "0.14.0", features = ["crossterm"], default_features = false }
 which = "4.0.2"
 
 [profile.release]

@@ -1,9 +1,14 @@
-> finish util implementation for cli + tui
+> remove redundant command types to reduce bin size; replace with sample generic utils
+> -
+
+<br/>
+
+> fix inactive sender for tui event thread
 > -
 
 > compare clap vs argh performance
 > -
-> - clap version three commits behind argh
+> - clap version four commits behind argh
 > - potentially fork or branch clap version; *maybe switch to v3*
 
 <br/>

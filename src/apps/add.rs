@@ -22,7 +22,7 @@ pub fn insert_new_cmd(
     append_cmd(GeneratedCommand {
         key: &key,
         target: &target,
-        command_type: command_type.unwrap_or_default(),
+        command_type: command_type.unwrap_or(CommandType::Url),
     })?;
     println!("Added {}", key);
     Ok(())

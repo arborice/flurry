@@ -9,7 +9,7 @@ fn unwrap_browser_infallible(
     browser_query: Option<ProgKind>,
     cfg: &Option<GlobalConfig>,
 ) -> WebBrowser {
-    if let Some(ProgKind::Web(Some(program))) = browser_query {
+    if let Some(ProgKind::Web(program)) = browser_query {
         program
     } else {
         if let Some(config) = cfg {
@@ -21,21 +21,27 @@ fn unwrap_browser_infallible(
     }
 }
 
+fn util_fallback(bin: &String) -> Result<std::path::PathBuf> {
+    let found = which::which(bin)?;
+    Ok(found)
+}
+
 pub fn dispatch_from_args(
     args: GoCmd,
     cmds: GeneratedCommands,
     cfg: Option<GlobalConfig>,
 ) -> Result<()> {
     match &args.program {
-        Some(ProgKind::Generic(Some(util))) => {
+        Some(ProgKind::Generic(bin)) => {
             if let Some(utils) = cmds.utils {
-                for u in &utils {
-                    if u == util {
-                        todo!("finish util impl");
-                        return Ok(());
+                for cfg_util in &utils {
+                    if bin == cfg_util {
+                        return cfg_util.try_exec(&args);
                     }
                 }
             }
+            let fallback = util_fallback(&bin)?;
+            return run_cmd!(@ fallback => &args.args);
         }
         Some(_) => {
             if let Some(cmds) = cmds.commands {
@@ -97,7 +103,28 @@ fn open_target_url_with_queries<S: AsRef<str>>(
     Ok(())
 }
 
-pub fn interactive_go(
+pub fn dispatch_interactive(
+    args: GoCmd,
+    cmds: GeneratedCommands,
+    cfg: Option<GlobalConfig>,
+) -> Result<()> {
+    match &args.program {
+        Some(ProgKind::Generic(bin)) => {
+            if let Some(utils) = cmds.utils {
+                for cfg_util in &utils {
+                    if bin == cfg_util {
+                        return cfg_util.try_exec(&args);
+                    }
+                }
+            }
+            let fallback = util_fallback(&bin)?;
+            return run_cmd!(@ fallback => &args.args);
+        }
+        _ => interactive_go(args, cmds, cfg),
+    }
+}
+
+fn interactive_go(
     GoCmd { program, args, .. }: GoCmd,
     mut cmds: GeneratedCommands,
     cfg: Option<GlobalConfig>,

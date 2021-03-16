@@ -23,55 +23,12 @@ pub struct GlobalConfig<'c> {
 	pub overrides: Option<Vec<ProgramOverride<'c>>>,
 }
 
-impl<'c> Default for GlobalConfig<'c> {
-	fn default() -> GlobalConfig<'c> {
-		let mut media_players = HashMap::new();
-		media_players.insert(
-			"audio",
-			MediaPlayerOverride {
-				bin: "audio-player-bin",
-				args: None,
-			},
-		);
-		media_players.insert(
-			"image",
-			MediaPlayerOverride {
-				bin: "/path/to/image-viewer",
-				args: None,
-			},
-		);
-		media_players.insert(
-			"video",
-			MediaPlayerOverride {
-				bin: "video-player-bin",
-				args: Some(vec!["optional", "args"]),
-			},
-		);
-		let sample_override = ProgramOverride {
-			cmd: "program-bin or /path/to/bin",
-			args: Some(vec!["optional", "args"]),
-		};
-		GlobalConfig {
-			default_browser: Some("browser-bin or /path/to/browser"),
-			media_players: Some(media_players),
-			overrides: Some(vec![sample_override]),
-		}
-	}
-}
-
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum CommandType {
 	Url,
-	/// marker only
 	Util,
 	WebQuery,
-}
-
-impl<'c> Default for CommandType {
-	fn default() -> CommandType {
-		CommandType::Url
-	}
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
@@ -98,18 +55,4 @@ pub struct GeneratedCommands<'c> {
 	pub commands: Option<Vec<GeneratedCommand<'c>>>,
 	#[serde(borrow, rename = "util")]
 	pub utils: Option<Vec<GenericUtil<'c>>>,
-}
-
-impl<'c> Default for GeneratedCommands<'c> {
-	fn default() -> GeneratedCommands<'c> {
-		let sample_cmd = GeneratedCommand {
-			key: "duck",
-			target: "https://www.duckduckgo.com",
-			command_type: CommandType::Url,
-		};
-		GeneratedCommands {
-			commands: Some(vec![sample_cmd]),
-			utils: None,
-		}
-	}
 }

@@ -13,7 +13,7 @@ pub fn exec_cli(app: Flurry, gen_cmds: GeneratedCommands, cfg: Option<GlobalConf
         Go(args) => {
             use crate::apps::go::*;
             if args.interactive_mode {
-                interactive_go(args, gen_cmds, cfg)
+                dispatch_interactive(args, gen_cmds, cfg)
             } else {
                 dispatch_from_args(args, gen_cmds, cfg)
             }?;

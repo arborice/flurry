@@ -61,9 +61,9 @@ fn command_type_from_arg(given_type: &str) -> Result<CommandType, String> {
     description = "Create a new generated command"
 )]
 pub struct AddUtil {
-    #[argh(positional, short = 'n', description = "key used to trigger command")]
+    #[argh(positional, description = "key used to trigger command")]
     pub key: String,
-    #[argh(option, short = 'n', description = "key used to trigger command")]
+    #[argh(option, short = 'b', description = "key used to trigger command")]
     pub bin: String,
     #[argh(
         option,
@@ -138,7 +138,7 @@ pub struct GoCmd {
         description = "browser used to open target (if url or web-query)",
         from_str_fn(program_from_arg)
     )]
-    pub program: Option<ProgKind<'static>>,
+    pub program: Option<ProgKind>,
     #[argh(
         switch,
         description = "randomize file order for utils with dir_scan enabled"
@@ -148,31 +148,37 @@ pub struct GoCmd {
     pub args: Vec<String>,
 }
 
+type MaybeBin = String;
 #[derive(PartialEq)]
-pub enum ProgKind<'p> {
-    Generic(Option<GenericUtil<'p>>),
-    Media(Option<Player>),
-    Web(Option<WebBrowser>),
+pub enum ProgKind {
+    Generic(MaybeBin),
+    Media(Player),
+    Web(WebBrowser),
 }
 
-use crate::utils::programs::generic::*;
-fn program_from_arg<'p>(given_prog: &str) -> Result<ProgKind<'p>, String> {
+fn program_from_arg(given_prog: &str) -> Result<ProgKind, String> {
     let err_msg = format!("{} is not a valid program marker", given_prog);
     if !given_prog.contains("-") {
-        return Err(err_msg);
+        return Ok(ProgKind::Generic(given_prog.to_owned()));
     }
 
     let mut split_arg = given_prog.splitn(2, "-");
-    let prefix = split_arg.nth(0).unwrap();
-    let prog_query = split_arg.nth(1).seppuku(&err_msg);
+    let prefix = split_arg.next().unwrap();
     match prefix {
-        "web" | "w" => Ok(ProgKind::Web(Some(
-            WebBrowser::try_from_str(prog_query).ok_or(err_msg)?,
-        ))),
-        "util" | "u" => Ok(ProgKind::Generic(Some(GenericUtil::try_query(prog_query)))),
-        "media" | "m" => Ok(ProgKind::Media(Some(Player::from_str(prog_query)))),
-        _ => Err(format!("{} is not a valid program marker", given_prog)),
+        "web" | "w" => {
+            let prog_query = split_arg.next().seppuku(&err_msg);
+            return Ok(ProgKind::Web(
+                WebBrowser::try_from_str(prog_query).ok_or(err_msg)?,
+            ));
+        }
+        "media" | "m" => {
+            let prog_query = split_arg.next().seppuku(&err_msg);
+            return Ok(ProgKind::Media(Player::from_str(prog_query)));
+        }
+        _ => {}
     }
+
+    Ok(ProgKind::Generic(given_prog.to_owned()))
 }
 
 #[derive(FromArgs, PartialEq)]
