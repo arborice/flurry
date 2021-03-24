@@ -6,9 +6,11 @@ use tui::{
     Frame,
 };
 
+#[derive(Clone, Default)]
 pub struct PopupOpts<'pop> {
     pub message: &'pop str,
     pub title: &'pop str,
+    pub requires_context: bool,
 }
 
 pub fn centered_rect(percent_x: u16, popup_height: u16, frame_size: Rect) -> Rect {
@@ -37,14 +39,9 @@ pub fn centered_rect(percent_x: u16, popup_height: u16, frame_size: Rect) -> Rec
         .split(popup_layout[1])[1]
 }
 
-use crate::{
-    prelude::*,
-    tui::widgets::list::{ListEntry, StatefulList},
-};
-
-pub fn centered_label<Ctx: ListEntry>(message: &str, context: Option<Ctx>) -> Paragraph {
+pub fn centered_label<'c>(message: &'c str, context: Option<&'c str>) -> Paragraph<'c> {
     let msg_span = match context {
-        Some(ctx) => Spans::from(message.replace("{{ ctx }}", ctx.as_context())),
+        Some(ctx) => Spans::from(message.replace("{{ ctx }}", ctx)),
         None => Spans::from(message),
     };
     let confirm_span = Spans::from("(y)es or (n)o?");
@@ -53,16 +50,13 @@ pub fn centered_label<Ctx: ListEntry>(message: &str, context: Option<Ctx>) -> Pa
         .wrap(Wrap { trim: true })
 }
 
-pub fn render_popup<T: ListEntry, B: Backend>(
-    app: &StatefulList<T>,
-    frame: &mut Frame<B>,
-    opts: &PopupOpts,
-) {
+pub fn render_popup<B: Backend>(frame: &mut Frame<B>, opts: &PopupOpts, context: &str) {
     let frame_size = frame.size();
-    let popup_label = centered_label(
-        opts.message,
-        Some(&app.items.borrow()[app.state.selected().seppuku("runtime failure :(")]),
-    );
+    let popup_label = if opts.requires_context {
+        centered_label(opts.message, Some(context))
+    } else {
+        centered_label(opts.message, None)
+    };
     let popup_rect = centered_rect(60, 4, frame_size);
     let popup_block = Block::default().title(opts.title).borders(Borders::ALL);
     frame.render_widget(Clear, popup_rect);

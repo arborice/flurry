@@ -43,6 +43,7 @@ macro_rules! run_cmd {
             .stdout(Stdio::null())
             .spawn()
     }};
+    (@ cmd:expr =>) => {{ std::process::Command::new($cmd).spawn() }};
     // spawn raw cmd with variadic args
     (@ $cmd:expr; $($args:expr),* $(,)?) => {{
         std::process::Command::new($cmd)

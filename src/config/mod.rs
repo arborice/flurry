@@ -1,10 +1,11 @@
+pub mod read;
 pub mod types;
 pub mod write;
 
 pub enum ConfigPath {
     Base,
-    Config,
     Commands,
+    Pos,
 }
 
 impl ConfigPath {
@@ -12,8 +13,8 @@ impl ConfigPath {
         let mut path = crate::utils::os::home();
         path.push(match self {
             ConfigPath::Base => ".config/flurry",
-            ConfigPath::Config => ".config/flurry/config.toml",
             ConfigPath::Commands => ".config/flurry/commands.toml",
+            ConfigPath::Pos => ".config/flurry/.pos",
         });
         path
     }

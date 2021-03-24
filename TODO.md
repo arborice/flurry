@@ -1,14 +1,14 @@
-> remove redundant command types to reduce bin size; replace with sample generic utils
-> -
+> add key trigger options to config
+> 
+> set up dynamic callback triggers (rm, add, run) for tui
+> 
+> <del/> clean up exit procedure for tui runtime (clear terminal screen)
 
 <br/>
 
-> fix inactive sender for tui event thread
-> -
-
 > compare clap vs argh performance
 > -
-> - clap version four commits behind argh
+> - clap version six commits behind argh
 > - potentially fork or branch clap version; *maybe switch to v3*
 
 <br/>

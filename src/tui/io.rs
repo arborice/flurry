@@ -1,3 +1,36 @@
+use super::runtime::Callback;
+use crate::prelude::*;
+use std::{
+    sync::mpsc::{channel, Receiver},
+    thread,
+    time::{Duration, Instant},
+};
+
+const EVENT_POLL_RATE: u64 = 100;
+
+pub fn spawn_event_loop() -> Receiver<Event> {
+    let (tx, rx) = channel();
+    let tick_rate = Duration::from_millis(EVENT_POLL_RATE);
+    thread::spawn(move || {
+        let mut last_tick = Instant::now();
+        loop {
+            let timeout = tick_rate
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0));
+            if crossterm::event::poll(timeout).unwrap() {
+                if let Ok(event) = crossterm::event::read() {
+                    tx.send(event).seppuku(None);
+                }
+            }
+
+            if last_tick.elapsed() >= tick_rate {
+                last_tick = Instant::now();
+            }
+        }
+    });
+    rx
+}
+
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use tinyvec::{array_vec, ArrayVec};
 
@@ -25,6 +58,46 @@ impl Default for TuiInputHandler {
 }
 
 impl TuiInputHandler {
+	pub const ADD: char = 'a';
+	pub const GO: char = 'g';
+	pub const RM: char = 'r';
+
+    pub fn trigger_add(&self, ev: &Event) -> bool {
+        if let Event::Key(KeyEvent {
+            code: KeyCode::Char(Self::ADD),
+            modifiers: KeyModifiers::NONE,
+        }) = ev
+        {
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn trigger_go(&self, ev: &Event) -> bool {
+        if let Event::Key(KeyEvent {
+            code: KeyCode::Char(Self::GO),
+            modifiers: KeyModifiers::NONE,
+        }) = ev
+        {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn trigger_rm(&self, ev: &Event) -> bool {
+        if let Event::Key(KeyEvent {
+            code: KeyCode::Char(Self::RM),
+            modifiers: KeyModifiers::NONE,
+        }) = ev
+        {
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn accepts(&self, ev: &Event) -> bool {
         self.accept.iter().any(|input| input == ev)
     }

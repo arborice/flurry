@@ -1,56 +1,33 @@
-use crate::{cli::types::ImportCmd, config::types::*, prelude::*};
+use crate::{cli::types::ImportCmd, config::{types::*, read::*, write::*}, prelude::*};
 
-fn duplicate_checker<'cmds>(
-	all_cmds: &mut Vec<GeneratedCommand<'cmds>>,
-	import_cmds: &mut Vec<GeneratedCommand<'cmds>>,
-	edit_config_after: &mut bool,
+fn duplicate_checker(
+	existing_cmds: &mut HashMap<String, GeneratedCommand>,
+	import_cmds: &mut HashMap<String, GeneratedCommand>,
 ) {
-	all_cmds.append(import_cmds);
-	all_cmds.sort_unstable_by_key(|cmd| cmd.key);
+	existing_cmds.reserve(import_cmds.capacity());
 
-	let mut prev_key = "";
-	if all_cmds
-		.clone()
-		.iter()
-		.any(|cmd| (cmd.key.eq_ignore_ascii_case(prev_key), prev_key = cmd.key).0)
-	{
-		let dedup_query = "Duplicates detected. (d)edup, (e)dit file, or (i)gnore?";
-		match query_stdin(dedup_query) {
-			Some(d) if d.eq_ignore_ascii_case("d") => {
-				all_cmds.dedup_by(|a, b| a.key.eq_ignore_ascii_case(b.key))
-			}
-			Some(e) if e.eq_ignore_ascii_case("e") => *edit_config_after = true,
-			Some(i) if i.eq_ignore_ascii_case("i") => {}
-			_ => seppuku!("Import canceled"),
+	for (key, cmd) in import_cmds.drain() {
+		if let Some(failed_import) = existing_cmds.insert(key, cmd) {
+			println!("Command by same key exists -> {:?}", failed_import);
 		}
 	}
 }
 
 pub fn import_cmds_from_file(ImportCmd { file_path }: ImportCmd) -> Result<()> {
-	let config_path = ConfigPath::Commands.abs();
+	let mut existing_cmds = cmds_db()?;
+	let mut new_cmds = cmds_from_file(file_path)?;
 
-	let import_file = read_to_string(file_path)?;
-	let new_cmds: GeneratedCommands = toml::from_str(&import_file)?;
-	let mut import_cmds = new_cmds.commands.seppuku("No commands to import");
-
-	let cmd_file = read_to_string(&config_path)?;
-	let mut existing_cmds: GeneratedCommands = toml::from_str(&cmd_file)?;
-	let mut edit_config_after = false;
-
-	if let Some(ref mut all_cmds) = existing_cmds.commands {
-		duplicate_checker(all_cmds, &mut import_cmds, &mut edit_config_after);
+	if let Some(ref mut import_cmds) = new_cmds.commands {
+		if let Some(ref mut existing_cmds) = existing_cmds.commands {
+			duplicate_checker(existing_cmds, import_cmds);
+		} else {
+			existing_cmds.commands = new_cmds.commands;
+		}
 	} else {
-		existing_cmds.commands.replace(import_cmds);
+		seppuku!("No commands to import");
 	}
 
-	let updated_cmds_file = toml::to_string(&existing_cmds)?;
-	write(&config_path, updated_cmds_file)?;
-
-	if edit_config_after {
-		println!("Opening commands file");
-		run_cmd!(OS => &config_path)?;
-	}
-
+	overwrite_cmds(existing_cmds)?;
 	println!("Commands imported");
 	Ok(())
 }
