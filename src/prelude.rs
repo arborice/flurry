@@ -7,6 +7,7 @@ pub use super::utils::traits::*;
 // std lib
 pub use std::collections::HashMap;
 pub use std::io::ErrorKind::NotFound as FileNotFound;
+pub use std::pin::Pin;
 
 // third party
 pub use anyhow::{anyhow, bail, Result};

@@ -3,7 +3,7 @@ use types::*;
 
 use crate::prelude::*;
 
-pub fn exec_cli(app: Flurry, gen_cmds: GeneratedCommands) -> Result<()> {
+pub fn exec_cli(app: Flurry, gen_cmds: Pin<&mut ArchivedGeneratedCommands>) -> Result<()> {
     if app.interactive_mode {
         return crate::apps::interactive::dispatch_interactive(gen_cmds);
     }

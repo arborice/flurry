@@ -11,42 +11,45 @@ use crossterm::{event::*, execute, terminal::*};
 use tui::{backend::CrosstermBackend, Terminal};
 
 pub struct TableExitStatus {
-	pub go_request: Option<String>,
-	pub rm_selection: Vec<String>,
-	pub success: bool,
+    pub go_request: Option<String>,
+    pub last_requested_action: Option<char>,
+    pub rm_selection: Vec<String>,
+    pub success: bool,
 }
 
 impl StatefulCmdsTable<'_> {
-	fn add_handler(&mut self, exit_status: &mut TableExitStatus) {
-		todo!()
-	}
+    fn add_handler(&mut self, _exit_status: &mut TableExitStatus) {
+        todo!()
+    }
 
-	fn go_handler(&self, exit_status: &mut TableExitStatus) {
-		if let Some(selected_index) = self.state.selected() {
-			let key = self.cmds.borrow()[selected_index].0.clone();
-			exit_status.go_request.replace(key);
-		}
-	}
+    fn go_handler(&self, exit_status: &mut TableExitStatus) {
+        if let Some(selected_index) = self.state.selected() {
+            let key = self.cmds.borrow()[selected_index].0.clone();
+            exit_status.go_request.replace(key);
+        }
+    }
 
-	fn rm_handler(&mut self, exit_status: &mut TableExitStatus) {
-		if let Some(selected_index) = self.state.selected() {
-			let key = self.cmds.borrow()[selected_index].0.clone();
-			exit_status.rm_selection.push(key);
-			self.selected_indices.push(selected_index);
-		}
-	}
+    fn rm_handler(&mut self, exit_status: &mut TableExitStatus) {
+        if let Some(selected_index) = self.state.selected() {
+            let key = self.cmds.borrow()[selected_index].0.clone();
+            exit_status.rm_selection.push(key);
+            self.selected_indices.push(selected_index);
+        }
+    }
 
-    pub fn render(&mut self, mut opts: TuiOpts) -> Result<()> {
+    pub fn render(&mut self, opts: TuiOpts) -> Result<TableExitStatus> {
         let TuiOpts {
             selected_style,
             input_handler,
             ..
         } = &opts;
 
+        let exit_requested = &mut false;
         let mut exit_status = TableExitStatus {
-        	go_request: None,
-        	rm_selection: vec![],
-        	success: false,
+            go_request: None,
+            last_requested_action: None,
+            rm_selection: vec![],
+            success: false,
         };
         let exit_status_ref = &mut exit_status;
 
@@ -60,6 +63,11 @@ impl StatefulCmdsTable<'_> {
         let rx = spawn_event_loop();
         let confirm_dialog_open = &mut false;
         let last_requested_popup: &mut Option<&PopupOpts> = &mut None;
+        let _rm_popup = PopupOpts {
+            title: "Confirm Deletion",
+            message: "Remove {{ ctx }}",
+            requires_context: true,
+        };
 
         loop {
             terminal.draw(|frame| {
@@ -69,7 +77,11 @@ impl StatefulCmdsTable<'_> {
                 if let Some(popup_opts) = last_requested_popup {
                     if *confirm_dialog_open {
                         if let Some(selected_index) = self.state.selected() {
-                            render_popup(frame, popup_opts, self.cmds.borrow()[selected_index].0.as_ref());
+                            render_popup(
+                                frame,
+                                popup_opts,
+                                self.cmds.borrow()[selected_index].0.as_ref(),
+                            );
                         }
                     }
                 }
@@ -88,20 +100,36 @@ impl StatefulCmdsTable<'_> {
             }
 
             match event {
-            	add if input_handler.trigger_go(&add) => {
-            		self.add_handler(exit_status_ref);
-            	},
+                add if input_handler.trigger_go(&add) => {
+                    exit_status_ref
+                        .last_requested_action
+                        .replace(TuiInputHandler::ADD);
+                    self.add_handler(exit_status_ref);
+                }
                 go if input_handler.trigger_go(&go) => {
-                	self.go_handler(exit_status_ref);
-                	break;
-                },
-                rm if input_handler.trigger_rm(&rm) => self.rm_handler(exit_status_ref),
+                    *exit_requested = true;
+                    exit_status_ref
+                        .last_requested_action
+                        .replace(TuiInputHandler::GO);
+                    self.go_handler(exit_status_ref);
+                    break;
+                }
+                rm if input_handler.trigger_rm(&rm) => {
+                    exit_status_ref
+                        .last_requested_action
+                        .replace(TuiInputHandler::ADD);
+                    self.rm_handler(exit_status_ref)
+                }
                 a if input_handler.accepts(&a) => {
                     if *confirm_dialog_open {
-                        if self.callback_handler(callbacks) {
-            				disable_raw_mode()?;
-            				execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
-            				terminal.show_cursor()?;
+                        if *exit_requested {
+                            disable_raw_mode()?;
+                            execute!(
+                                terminal.backend_mut(),
+                                LeaveAlternateScreen,
+                                DisableMouseCapture
+                            )?;
+                            terminal.show_cursor()?;
                             break;
                         }
                         *confirm_dialog_open = false;
@@ -111,13 +139,17 @@ impl StatefulCmdsTable<'_> {
                 s if input_handler.selects(&s) => {
                     if let Some(popup_opts) = last_requested_popup {
                         if popup_opts.requires_context {
-                            self.show_dialog();
+                            *confirm_dialog_open = true;
                         }
                     } else {
-                        if self.callback_handler(callbacks) {
-            				disable_raw_mode()?;
-            				execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
-            				terminal.show_cursor()?;
+                        if *exit_requested {
+                            disable_raw_mode()?;
+                            execute!(
+                                terminal.backend_mut(),
+                                LeaveAlternateScreen,
+                                DisableMouseCapture
+                            )?;
+                            terminal.show_cursor()?;
                             break;
                         }
                     }
@@ -128,9 +160,13 @@ impl StatefulCmdsTable<'_> {
                     }
                 }
                 e if input_handler.is_exit_trigger(&e) => {
-            		disable_raw_mode()?;
-            		execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
-            		terminal.show_cursor()?;
+                    disable_raw_mode()?;
+                    execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen,
+                        DisableMouseCapture
+                    )?;
+                    terminal.show_cursor()?;
                     break;
                 }
                 Event::Key(KeyEvent { code, modifiers }) => {
@@ -150,6 +186,6 @@ impl StatefulCmdsTable<'_> {
                 _ => {}
             }
         }
-        Ok(())
+        Ok(exit_status)
     }
 }

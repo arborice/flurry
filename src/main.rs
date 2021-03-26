@@ -9,8 +9,8 @@ use prelude::*;
 
 fn main() -> Result<()> {
 	config::write::init_cmds_if_not_exists()?;
-	let cmds = config::read::cmds_db()?;
+	let mut archived = config::get::CmdsDb::from_cfg()?;
 
 	let flurry_app: cli::types::Flurry = argh::from_env();
-	cli::exec_cli(flurry_app, cmds)
+	cli::exec_cli(flurry_app, archived.archive_mut())
 }

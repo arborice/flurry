@@ -1,4 +1,3 @@
-use super::runtime::Callback;
 use crate::prelude::*;
 use std::{
     sync::mpsc::{channel, Receiver},
@@ -58,10 +57,11 @@ impl Default for TuiInputHandler {
 }
 
 impl TuiInputHandler {
-	pub const ADD: char = 'a';
-	pub const GO: char = 'g';
-	pub const RM: char = 'r';
+    pub const ADD: char = 'a';
+    pub const GO: char = 'g';
+    pub const RM: char = 'r';
 
+    #[allow(dead_code)]
     pub fn trigger_add(&self, ev: &Event) -> bool {
         if let Event::Key(KeyEvent {
             code: KeyCode::Char(Self::ADD),
@@ -73,7 +73,6 @@ impl TuiInputHandler {
             false
         }
     }
-    
     pub fn trigger_go(&self, ev: &Event) -> bool {
         if let Event::Key(KeyEvent {
             code: KeyCode::Char(Self::GO),

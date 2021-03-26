@@ -43,6 +43,7 @@ impl Default for PermissionsKind {
 
 #[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum EncoderKind {
+	Exts(Vec<String>),
 	RegEx(String),
 	Raw(String),
 	None,
@@ -82,7 +83,7 @@ impl From<bool> for ScanDirKind {
 pub struct GeneratedCommand {
 	pub bin: String,
 	pub dfl_args: Option<Vec<String>>,
-	pub aliases: Option<Vec<String>,
+	pub aliases: Option<Vec<String>>,
 	pub encoder: EncoderKind,
 	pub permissions: PermissionsKind,
 	pub query_which: bool,

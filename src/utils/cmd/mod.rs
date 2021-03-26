@@ -1,12 +1,6 @@
 use crate::prelude::*;
 use std::{ffi::OsStr, path::PathBuf};
 
-impl PartialEq<GeneratedCommand> for String {
-    fn eq(&self, cfg_util: &GeneratedCommand) -> bool {
-        cfg_util.is_override(&self.as_ref()) || self == &cfg_util.bin
-    }
-}
-
 use crate::cli::types::AddCmd;
 impl GeneratedCommand {
     pub fn from_args(
@@ -62,14 +56,16 @@ use crate::{
     },
 };
 
-impl GeneratedCommand {
+use rkyv::core_impl::ArchivedOption;
+
+impl ArchivedGeneratedCommand {
     fn get_bin(&self) -> BinKind {
         if !self.query_which {
             BinKind::Borrowed(self.bin.as_ref())
         } else {
-            if let Some(aliases) = &self.aliases {
+            if let ArchivedOption::Some(aliases) = &self.aliases {
                 for alias in aliases.iter() {
-                    if let Ok(bin) = which::which(alias) {
+                    if let Ok(bin) = which::which(alias.as_ref()) {
                         return BinKind::Whiched(bin);
                     }
                 }
@@ -79,16 +75,8 @@ impl GeneratedCommand {
         }
     }
 
-    fn is_override(&self, over_ride: &str) -> bool {
-        if let Some(aliases) = &self.aliases {
-        	aliases.iter().any(|a| a == over_ride)
-        } else {
-            false
-        }
-    }
-
     pub fn try_exec(&self, GoCmd { args, random, .. }: &GoCmd) -> Result<()> {
-        let GeneratedCommand {
+        let ArchivedGeneratedCommand {
             dfl_args,
             permissions,
             encoder,
@@ -96,14 +84,16 @@ impl GeneratedCommand {
             ..
         } = self;
 
-        if let PermissionsKind::Root = permissions {
+        if let ArchivedPermissionsKind::Root = permissions {
             ensure_root();
         }
 
-        if let ScanDirKind::Recursive = scan_dir {
+        if let ArchivedScanDirKind::Recursive = scan_dir {
             let filter = match encoder {
-                EncoderKind::RegEx(pat) => FilterKind::Regex::<&str>(regex::Regex::new(pat)?),
-                EncoderKind::None => FilterKind::None,
+                ArchivedEncoderKind::Exts(exts) => FilterKind::Exts(exts.as_slice()),
+                ArchivedEncoderKind::RegEx(pat) => FilterKind::Regex(regex::Regex::new(pat)?),
+                ArchivedEncoderKind::Raw(pat) => FilterKind::Raw(pat),
+                ArchivedEncoderKind::None => FilterKind::None,
                 _ => todo!(),
             };
             let files_list = args.iter().fold(vec![], |mut list, a| {
@@ -114,14 +104,18 @@ impl GeneratedCommand {
                 list
             });
 
-            match dfl_args {
-                Some(dfl) => run_cmd!(@ self.get_bin() => dfl, files_list),
-                None => run_cmd!(@ self.get_bin() => files_list),
+            match &dfl_args {
+                ArchivedOption::Some(dfl) => {
+                    run_cmd!(@ self.get_bin() => dfl.iter().map(|a| a.as_ref()), files_list)
+                }
+                ArchivedOption::None => run_cmd!(@ self.get_bin() => files_list),
             }?;
         } else {
-            match dfl_args {
-                Some(dfl) => run_cmd!(@ self.get_bin() => dfl, args),
-                None => run_cmd!(@ self.get_bin() => args),
+            match &dfl_args {
+                ArchivedOption::Some(dfl) => {
+                    run_cmd!(@ self.get_bin() => dfl.iter().map(|a| a.as_ref()), args)
+                }
+                ArchivedOption::None => run_cmd!(@ self.get_bin() => args),
             }?;
         }
 

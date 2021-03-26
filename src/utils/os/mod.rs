@@ -1,8 +1,9 @@
+#[allow(dead_code)]
 pub mod linux;
 
 use crate::prelude::*;
 
-pub fn query_stdin(query: &str) -> Option<String> {
+pub fn query_stdin<Q: std::fmt::Display>(query: Q) -> Option<String> {
     use std::io::stdin;
 
     println!("{}", query);
@@ -19,7 +20,7 @@ pub fn query_stdin(query: &str) -> Option<String> {
 }
 
 pub fn home() -> std::path::PathBuf {
-    home::home_dir().expect("Unable to find user home")
+    home::home_dir().seppuku("Unable to find user home")
 }
 
 fn user_is_root() -> bool {
