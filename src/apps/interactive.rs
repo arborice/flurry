@@ -5,7 +5,7 @@ use crate::{
 };
 use rkyv::{de::deserializers::AllocDeserializer, Deserialize};
 
-pub fn dispatch_interactive(gen_cmds: Pin<&mut ArchivedGeneratedCommands>) -> Result<()> {
+pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> {
     if gen_cmds.commands.is_none() {
         return Err(anyhow!("No commands yet!"));
     }

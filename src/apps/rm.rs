@@ -5,10 +5,7 @@ use crate::{
 };
 use rkyv::{core_impl::ArchivedOption, de::deserializers::AllocDeserializer, Deserialize};
 
-pub fn try_rm_cmd(
-    RmCmd { key, .. }: RmCmd,
-    gen_cmds: Pin<&mut ArchivedGeneratedCommands>,
-) -> Result<()> {
+pub fn try_rm_cmd(RmCmd { key, .. }: RmCmd, gen_cmds: &ArchivedGeneratedCommands) -> Result<()> {
     if let ArchivedOption::Some(ref cmds) = gen_cmds.commands {
         let key: &str = key.as_ref();
         if cmds.contains_key(key) {
@@ -16,6 +13,7 @@ pub fn try_rm_cmd(
             if let Some(ref mut cmds) = gen_cmds.commands {
                 cmds.remove(key);
             }
+            println!("Removing {}", key);
             return overwrite_cmds(gen_cmds);
         }
     }

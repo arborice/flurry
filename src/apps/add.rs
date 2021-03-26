@@ -1,7 +1,7 @@
 use crate::{cli::types::AddCmd, config::write::*, prelude::*};
 use rkyv::{core_impl::ArchivedOption, de::deserializers::AllocDeserializer, Deserialize};
 
-pub fn insert_new_cmd(args: AddCmd, gen_cmds: Pin<&mut ArchivedGeneratedCommands>) -> Result<()> {
+pub fn insert_new_cmd(args: AddCmd, gen_cmds: &ArchivedGeneratedCommands) -> Result<()> {
     if let ArchivedOption::Some(ref cmds) = gen_cmds.commands {
         let key: &str = &args.key.as_ref();
         if cmds.contains_key(key) {

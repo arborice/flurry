@@ -1,39 +1,6 @@
 use crate::prelude::*;
 use std::{ffi::OsStr, path::PathBuf};
 
-use crate::cli::types::AddCmd;
-impl GeneratedCommand {
-    pub fn from_args(
-        AddCmd {
-            aliases,
-            args,
-            bin,
-            key,
-            permissions,
-            query_which,
-            scan_dir,
-            encoder,
-            ..
-        }: AddCmd,
-    ) -> (String, GeneratedCommand) {
-        (
-            key,
-            GeneratedCommand {
-                aliases,
-                bin,
-                permissions: permissions.into(),
-                scan_dir: scan_dir.into(),
-                query_which,
-                dfl_args: if args.is_empty() { None } else { Some(args) },
-                encoder: match encoder {
-                    Some(e) => EncoderKind::RegEx(e),
-                    None => EncoderKind::None,
-                },
-            },
-        )
-    }
-}
-
 enum BinKind<'bin> {
     Borrowed(&'bin str),
     Whiched(PathBuf),
@@ -51,7 +18,7 @@ impl AsRef<OsStr> for BinKind<'_> {
 use crate::{
     cli::types::GoCmd,
     utils::{
-        fs::recursive::{fetch_file_list, FilterKind},
+        fs::recursive::{fetch_file_list, Filter},
         os::ensure_root,
     },
 };
@@ -79,7 +46,7 @@ impl ArchivedGeneratedCommand {
         let ArchivedGeneratedCommand {
             dfl_args,
             permissions,
-            encoder,
+            filter,
             scan_dir,
             ..
         } = self;
@@ -88,16 +55,17 @@ impl ArchivedGeneratedCommand {
             ensure_root();
         }
 
-        if let ArchivedScanDirKind::Recursive = scan_dir {
-            let filter = match encoder {
-                ArchivedEncoderKind::Exts(exts) => FilterKind::Exts(exts.as_slice()),
-                ArchivedEncoderKind::RegEx(pat) => FilterKind::Regex(regex::Regex::new(pat)?),
-                ArchivedEncoderKind::Raw(pat) => FilterKind::Raw(pat),
-                ArchivedEncoderKind::None => FilterKind::None,
-                _ => todo!(),
-            };
+        let filter = match filter {
+            ArchivedFilterKind::Exts(exts) => Filter::Exts(exts.as_slice()),
+            ArchivedFilterKind::FileType(ty) => Filter::FileType(ty),
+            ArchivedFilterKind::RegEx(pat) => Filter::Regex(regex::Regex::new(pat)?),
+            ArchivedFilterKind::Raw(pat) => Filter::Raw(pat),
+            _ => Filter::None,
+        };
+
+        if let ArchivedScanDirKind::Depth(depth) = scan_dir {
             let files_list = args.iter().fold(vec![], |mut list, a| {
-                match fetch_file_list(a, *random, &filter) {
+                match fetch_file_list(a, *depth, *random, &filter) {
                     Ok(ref mut files) => list.append(files),
                     Err(e) => eprintln!("Error getting files for {}: {}", a, e),
                 }

@@ -8,17 +8,9 @@ use std::fs::{create_dir_all, write};
 pub fn init_cmds_if_not_exists() -> Result<()> {
 	if !ConfigPath::Base.abs().exists() {
 		create_dir_all(ConfigPath::Base.abs())?;
-		write(ConfigPath::Pos.abs(), "12")?;
-		write(
-			ConfigPath::Commands.abs(),
-			"# see <github link> for sample commands or create some with the cli\n",
-		)?;
+		overwrite_cmds(GeneratedCommands::default())?;
 	} else if !ConfigPath::Commands.abs().exists() {
-		write(ConfigPath::Pos.abs(), "12")?;
-		write(
-			ConfigPath::Commands.abs(),
-			"# see <github link> for sample commands or create some with the cli\n",
-		)?;
+		overwrite_cmds(GeneratedCommands::default())?;
 	}
 	Ok(())
 }

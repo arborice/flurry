@@ -19,7 +19,7 @@ pub struct TableExitStatus {
 
 impl StatefulCmdsTable<'_> {
     fn add_handler(&mut self, _exit_status: &mut TableExitStatus) {
-        todo!()
+        todo!();
     }
 
     fn go_handler(&self, exit_status: &mut TableExitStatus) {
@@ -100,7 +100,8 @@ impl StatefulCmdsTable<'_> {
             }
 
             match event {
-                add if input_handler.trigger_go(&add) => {
+                add if input_handler.trigger_add(&add) => {
+                    *exit_requested = true;
                     exit_status_ref
                         .last_requested_action
                         .replace(TuiInputHandler::ADD);
@@ -112,7 +113,6 @@ impl StatefulCmdsTable<'_> {
                         .last_requested_action
                         .replace(TuiInputHandler::GO);
                     self.go_handler(exit_status_ref);
-                    break;
                 }
                 rm if input_handler.trigger_rm(&rm) => {
                     exit_status_ref
@@ -122,16 +122,6 @@ impl StatefulCmdsTable<'_> {
                 }
                 a if input_handler.accepts(&a) => {
                     if *confirm_dialog_open {
-                        if *exit_requested {
-                            disable_raw_mode()?;
-                            execute!(
-                                terminal.backend_mut(),
-                                LeaveAlternateScreen,
-                                DisableMouseCapture
-                            )?;
-                            terminal.show_cursor()?;
-                            break;
-                        }
                         *confirm_dialog_open = false;
                     }
                 }
@@ -140,17 +130,6 @@ impl StatefulCmdsTable<'_> {
                     if let Some(popup_opts) = last_requested_popup {
                         if popup_opts.requires_context {
                             *confirm_dialog_open = true;
-                        }
-                    } else {
-                        if *exit_requested {
-                            disable_raw_mode()?;
-                            execute!(
-                                terminal.backend_mut(),
-                                LeaveAlternateScreen,
-                                DisableMouseCapture
-                            )?;
-                            terminal.show_cursor()?;
-                            break;
                         }
                     }
                 }
@@ -184,6 +163,17 @@ impl StatefulCmdsTable<'_> {
                     _ => {}
                 },
                 _ => {}
+            }
+
+            if *exit_requested {
+                disable_raw_mode()?;
+                execute!(
+                    terminal.backend_mut(),
+                    LeaveAlternateScreen,
+                    DisableMouseCapture
+                )?;
+                terminal.show_cursor()?;
+                break;
             }
         }
         Ok(exit_status)

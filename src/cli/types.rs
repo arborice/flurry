@@ -46,7 +46,7 @@ pub struct AddCmd {
     #[argh(switch, short = 'w', description = "command's target value")]
     pub query_which: bool,
     #[argh(option, short = 'p', description = "command's target value")]
-    pub encoder: Option<String>,
+    pub filter: Option<String>,
     #[argh(positional, description = "command's target value")]
     pub args: Vec<String>,
 }
@@ -126,11 +126,7 @@ pub struct ImportCmd {
 }
 
 #[derive(FromArgs, PartialEq)]
-#[argh(
-    subcommand,
-    name = "interactive",
-    description = "Enter interactive mode"
-)]
+#[argh(subcommand, name = "tui", description = "Enter interactive mode")]
 pub struct InteractiveMode {}
 
 #[derive(FromArgs, PartialEq)]

@@ -2,6 +2,7 @@ use crate::prelude::*;
 use std::{
 	fs::{read, File},
 	io::Read,
+	pin::Pin,
 };
 
 pub struct CmdsDb {
@@ -32,6 +33,7 @@ impl CmdsDb {
 		unsafe { rkyv::archived_value::<GeneratedCommands>(self.bytes.as_slice(), self.pos) }
 	}
 
+	#[allow(dead_code)]
 	pub fn archive_mut(&mut self) -> Pin<&mut ArchivedGeneratedCommands> {
 		unsafe {
 			rkyv::archived_value_mut::<GeneratedCommands>(
