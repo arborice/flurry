@@ -5,4 +5,12 @@
 
 <br/>
 
+#### add a `set` command to alter command properties
+
+<br/>
+
+#### tui needs `add` and `edit` functionality
+
+<br/>
+
 #### catch up main branch with tui interface + app changes

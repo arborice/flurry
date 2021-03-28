@@ -12,45 +12,19 @@ macro_rules! seppuku {
     }};
     // formatted string and early exit
     ($code:expr => f$($args:tt)*) => {{
-        println!("{}", format!($($args)*));
+        eprintln!("{}", format!($($args)*));
         std::process::exit($code);
     }};
 }
 
 #[macro_export]
 macro_rules! run_cmd {
-    // capture raw cmd with variadic args
-    ($cmd:expr; $($args:expr),* $(,)?) => {{
-        use std::process::{Command, Stdio};
-        Command::new($cmd)
-            .args(&[$($args,)*])
-            .stdout(Stdio::null())
-            .output()
-    }};
-    // capture raw cmd and cwd with variadic args
-    ($cmd:expr, $wd:expr; $($args:expr),* $(,)?) => {{
-        use std::process::{Command, Stdio};
-        Command::new($cmd)
-            .current_dir($wd)
-            .args(&[$($args,)*])
-            .stdout(Stdio::null())
-            .output()
-    }};
-    (OS => $($args:tt)*) => {{
-        use std::process::{Command, Stdio};
-        Command::new("xdg-open")
-            .args($($args)*)
-            .stdout(Stdio::null())
-            .spawn()
-    }};
     (@ cmd:expr =>) => {{ std::process::Command::new($cmd).spawn() }};
     // spawn raw cmd with variadic args
     (@ $cmd:expr; $($args:expr),* $(,)?) => {{
         std::process::Command::new($cmd)
             .args(&[$($args,)*])
             .spawn()
-            .map(|_| ())
-            .map_err(|e| anyhow::anyhow!(e))
     }};
     // spawn raw cmd and cwd with variadic args
     (@ $cmd:expr => $($args:expr),* $(,)?) => {{
@@ -59,7 +33,5 @@ macro_rules! run_cmd {
             $(.args($args,))*
             .stdout(Stdio::null())
             .spawn()
-            .map(|_| ())
-            .map_err(|e| anyhow::anyhow!(e))
     }};
 }

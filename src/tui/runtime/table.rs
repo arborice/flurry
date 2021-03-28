@@ -17,21 +17,21 @@ pub struct TableExitStatus {
     pub success: bool,
 }
 
-impl StatefulCmdsTable<'_> {
+impl<'cmds> StatefulCmdsTable<'cmds> {
     fn add_handler(&mut self, _exit_status: &mut TableExitStatus) {
         todo!();
     }
 
     fn go_handler(&self, exit_status: &mut TableExitStatus) {
         if let Some(selected_index) = self.state.selected() {
-            let key = self.cmds.borrow()[selected_index].0.clone();
+            let key = self.cmds.borrow()[selected_index].0.to_string();
             exit_status.go_request.replace(key);
         }
     }
 
     fn rm_handler(&mut self, exit_status: &mut TableExitStatus) {
         if let Some(selected_index) = self.state.selected() {
-            let key = self.cmds.borrow()[selected_index].0.clone();
+            let key = self.cmds.borrow()[selected_index].0.to_string();
             exit_status.rm_selection.push(key);
             self.selected_indices.push(selected_index);
         }
@@ -49,7 +49,7 @@ impl StatefulCmdsTable<'_> {
             go_request: None,
             last_requested_action: None,
             rm_selection: vec![],
-            success: false,
+            success: true,
         };
         let exit_status_ref = &mut exit_status;
 
@@ -117,15 +117,19 @@ impl StatefulCmdsTable<'_> {
                 rm if input_handler.trigger_rm(&rm) => {
                     exit_status_ref
                         .last_requested_action
-                        .replace(TuiInputHandler::ADD);
+                        .replace(TuiInputHandler::RM);
                     self.rm_handler(exit_status_ref)
                 }
                 a if input_handler.accepts(&a) => {
+                    exit_status_ref.success = true;
                     if *confirm_dialog_open {
                         *confirm_dialog_open = false;
                     }
                 }
-                r if input_handler.rejects(&r) => *confirm_dialog_open = false,
+                r if input_handler.rejects(&r) => {
+                    exit_status_ref.success = false;
+                    *confirm_dialog_open = false;
+                }
                 s if input_handler.selects(&s) => {
                     if let Some(popup_opts) = last_requested_popup {
                         if popup_opts.requires_context {
@@ -138,16 +142,7 @@ impl StatefulCmdsTable<'_> {
                         self.selected_indices.retain(|s| *s != selected_index);
                     }
                 }
-                e if input_handler.is_exit_trigger(&e) => {
-                    disable_raw_mode()?;
-                    execute!(
-                        terminal.backend_mut(),
-                        LeaveAlternateScreen,
-                        DisableMouseCapture
-                    )?;
-                    terminal.show_cursor()?;
-                    break;
-                }
+                e if input_handler.is_exit_trigger(&e) => *exit_requested = true,
                 Event::Key(KeyEvent { code, modifiers }) => {
                     if modifiers == KeyModifiers::NONE {
                         match code {

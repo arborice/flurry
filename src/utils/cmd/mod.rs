@@ -30,6 +30,10 @@ impl ArchivedGeneratedCommand {
         if !self.query_which {
             BinKind::Borrowed(self.bin.as_ref())
         } else {
+            if let Ok(bin) = which::which(self.bin.as_ref()) {
+                return BinKind::Whiched(bin);
+            }
+
             if let ArchivedOption::Some(aliases) = &self.aliases {
                 for alias in aliases.iter() {
                     if let Ok(bin) = which::which(alias.as_ref()) {

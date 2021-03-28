@@ -1,26 +1,30 @@
 pub mod types;
 use types::*;
 
-use crate::prelude::*;
+use crate::{apps, prelude::*};
 
 pub fn exec_cli(app: Flurry) -> Result<()> {
     if !app.interactive_mode && app.subcmd.is_none() {
-        bail!("use the `help` subcommand for info")
-    }
-
-    let archived = CmdsDb::from_cfg()?;
-    if app.interactive_mode {
-        return crate::apps::interactive::dispatch_interactive(archived.archive());
+        return Err(anyhow!("try `flurry help` for usage info"));
     }
 
     use SubCmds::*;
+    if let Some(Export(args)) = app.subcmd {
+        return apps::export::export_gen_cmds(args);
+    }
+
+    let cmds_db = CmdsDb::from_cfg()?;
+    let cmds_rkyv = cmds_db.archive();
+    if app.interactive_mode {
+        return apps::interactive::dispatch_interactive(cmds_rkyv);
+    }
+
     match app.subcmd {
-        Some(Add(args)) => crate::apps::add::insert_new_cmd(args, archived.archive())?,
-        Some(Import(args)) => crate::apps::import::import_cmds_from_file(args)?,
-        Some(Export(args)) => crate::apps::export::export_gen_cmds(args)?,
-        Some(Go(args)) => crate::apps::go::dispatch_from_args(args, archived.archive())?,
-        Some(Rm(args)) => crate::apps::rm::try_rm_cmd(args, archived.archive())?,
-        Some(Tui(_)) => crate::apps::interactive::dispatch_interactive(archived.archive())?,
+        Some(Add(args)) => apps::add::insert_new_cmd(args, cmds_rkyv)?,
+        Some(Import(args)) => apps::import::import_cmds_from_file(args, cmds_rkyv)?,
+        Some(Go(args)) => apps::go::dispatch_from_args(args, cmds_rkyv)?,
+        Some(Rm(args)) => apps::rm::try_rm_cmd(args, cmds_rkyv)?,
+        Some(Tui(_)) => apps::interactive::dispatch_interactive(cmds_rkyv)?,
         _ => {}
     }
     Ok(())

@@ -25,11 +25,21 @@ pub fn table_layout<B: Backend>(
         .map(|h| Cell::from(*h).style(Style::default().fg(Color::Red)));
     let header = Row::new(header_cells).height(1).bottom_margin(1);
     frame.render_stateful_widget(
-        Table::new(table.cmds.borrow().iter().map(|entry| {
+        Table::new(table.cmds.borrow().iter().map(|(key, cmd)| {
+            use rkyv::core_impl::ArchivedOption;
+            let aliases = match &cmd.aliases {
+                ArchivedOption::Some(aliases) => aliases.join(", "),
+                ArchivedOption::None => String::new(),
+            };
             Row::new(
-                [entry.0.as_ref(), entry.1.bin.as_ref(), entry.1.permissions.as_ref()]
-                    .iter()
-                    .map(|c| Cell::from(*c)),
+                [
+                    key.to_string(),
+                    cmd.bin.to_string(),
+                    aliases,
+                    cmd.permissions.to_string(),
+                ]
+                .iter()
+                .map(|c| Cell::from(c.clone())),
             )
             .height(1)
         }))

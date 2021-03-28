@@ -78,10 +78,11 @@ fn insert_and_dedup_cmds(
 	Ok(existing_db)
 }
 
-pub fn import_cmds_from_file(ImportCmd { file_path }: ImportCmd) -> Result<()> {
-	let existing_archive = crate::config::get::CmdsDb::from_cfg()?;
-	let existing_db = existing_archive.archive();
-	let new_archive = crate::config::get::CmdsDb::from_path(file_path)?;
+pub fn import_cmds_from_file(
+	ImportCmd { file_path }: ImportCmd,
+	existing_db: &ArchivedGeneratedCommands,
+) -> Result<()> {
+	let new_archive = CmdsDb::from_path(file_path)?;
 	let new_cmds = new_archive.archive();
 
 	if let ArchivedOption::Some(ref import_cmds) = new_cmds.commands {

@@ -37,7 +37,7 @@ impl CmdsDb {
 	pub fn archive_mut(&mut self) -> Pin<&mut ArchivedGeneratedCommands> {
 		unsafe {
 			rkyv::archived_value_mut::<GeneratedCommands>(
-				Pin::new(self.bytes.as_mut_slice()),
+				Pin::new_unchecked(self.bytes.as_mut_slice()),
 				self.pos,
 			)
 		}

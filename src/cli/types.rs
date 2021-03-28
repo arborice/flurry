@@ -35,18 +35,40 @@ pub struct AddCmd {
     #[argh(
         option,
         short = 'a',
-        description = "maximum of 4, separated by commmas",
+        description = "commma separated values (max of 4) which are inserted as aliases for this command. Also used to query if query-which enabled",
         from_str_fn(aliases_from_arg)
     )]
     pub aliases: Option<Vec<String>>,
-    #[argh(switch, short = 'p', description = "command's target value")]
+    #[argh(
+        switch,
+        short = 'p',
+        description = "require permissions check to run this command"
+    )]
     pub permissions: bool,
-    #[argh(switch, short = 's', description = "command's target value")]
+    #[argh(
+        switch,
+        short = 's',
+        description = "whether to append a ?recursive directory scan output as arguments to this command"
+    )]
     pub scan_dir: bool,
-    #[argh(switch, short = 'w', description = "command's target value")]
+    #[argh(
+        switch,
+        short = 'w',
+        description = "query the target system for the binary location (or alias) instead of executing the raw value of bin"
+    )]
     pub query_which: bool,
-    #[argh(option, short = 'p', description = "command's target value")]
+    #[argh(
+        option,
+        short = 'f',
+        description = "add a simple unicode filter for output"
+    )]
     pub filter: Option<String>,
+    #[argh(
+        switch,
+        short = 'r',
+        description = "[FLAG] apply a regex filter instead of unicode"
+    )]
+    pub regex: bool,
     #[argh(positional, description = "command's target value")]
     pub args: Vec<String>,
 }

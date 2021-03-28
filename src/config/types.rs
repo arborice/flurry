@@ -1,12 +1,42 @@
-use rkyv::{Archive, Deserialize, Serialize};
+use rkyv::{core_impl::ArchivedOption, Archive, Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Default, PartialEq, Archive, Deserialize, Serialize)]
 pub struct GeneratedCommands {
 	pub commands: Option<HashMap<String, GeneratedCommand>>,
+	pub aliases: Option<HashMap<String, String>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
+impl ArchivedGeneratedCommands {
+	pub fn contains_key<S: AsRef<str>>(&self, key: S) -> bool {
+		let key = key.as_ref();
+		if let ArchivedOption::Some(commands) = &self.commands {
+			if commands.contains_key(key) {
+				return true;
+			}
+		}
+		if let ArchivedOption::Some(aliases) = &self.aliases {
+			return aliases.contains_key(key);
+		}
+		false
+	}
+
+	pub fn get<S: AsRef<str>>(&self, key: S) -> Option<&ArchivedGeneratedCommand> {
+		if let ArchivedOption::Some(commands) = &self.commands {
+			let key = key.as_ref();
+			return commands.get(key).or_else(|| {
+				if let ArchivedOption::Some(aliases) = &self.aliases {
+					aliases.get(key).and_then(|key| commands.get(key))
+				} else {
+					None
+				}
+			});
+		}
+		None
+	}
+}
+
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum PermissionsKind {
 	Any,
 	Group,
@@ -14,14 +44,19 @@ pub enum PermissionsKind {
 	User,
 }
 
-impl AsRef<str> for PermissionsKind {
-	fn as_ref(&self) -> &str {
-		match self {
-			PermissionsKind::Any => "any",
-			PermissionsKind::Group => "group",
-			PermissionsKind::Root => "root",
-			PermissionsKind::User => "user",
-		}
+use std::fmt::{Display, Formatter, Result as FmtResult};
+impl Display for ArchivedPermissionsKind {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(
+			f,
+			"{}",
+			match self {
+				ArchivedPermissionsKind::Any => "any",
+				ArchivedPermissionsKind::Group => "group",
+				ArchivedPermissionsKind::Root => "root",
+				ArchivedPermissionsKind::User => "user",
+			}
+		)
 	}
 }
 
@@ -41,7 +76,7 @@ impl Default for PermissionsKind {
 	}
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Archive, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Eq, Archive, Deserialize, Serialize)]
 pub enum FileTypeFilter {
 	Dirs,
 	Files,
@@ -68,7 +103,7 @@ impl PartialEq<&ArchivedFileTypeFilter> for FileTypeFilter {
 	}
 }
 
-#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum FilterKind {
 	Exts(Vec<String>),
 	FileType(FileTypeFilter),
@@ -77,7 +112,7 @@ pub enum FilterKind {
 	None,
 }
 
-#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum EncoderKind {
 	Url,
 	None,
@@ -89,7 +124,7 @@ impl Default for FilterKind {
 	}
 }
 
-#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum ScanDirKind {
 	Depth(u8),
 	None,
@@ -111,7 +146,7 @@ impl From<bool> for ScanDirKind {
 	}
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Debug, Default, PartialEq, Archive, Deserialize, Serialize)]
 pub struct GeneratedCommand {
 	pub bin: String,
 	pub dfl_args: Option<Vec<String>>,
