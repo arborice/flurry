@@ -4,7 +4,7 @@ use argh::FromArgs;
 #[derive(FromArgs)]
 #[argh(description = "A tiny cli utility")]
 pub struct Flurry {
-    #[argh(switch, short = 'i', description = "enter tui mode")]
+    #[argh(switch, short = 'i', description = "enter interactive mode")]
     pub interactive_mode: bool,
     #[argh(subcommand)]
     pub subcmd: Option<SubCmds>,
@@ -18,6 +18,7 @@ pub enum SubCmds {
     Go(GoCmd),
     Import(ImportCmd),
     Rm(RmCmd),
+    Set(SetCmd),
     Tui(InteractiveMode),
 }
 
@@ -39,6 +40,13 @@ pub struct AddCmd {
         from_str_fn(aliases_from_arg)
     )]
     pub aliases: Option<Vec<String>>,
+    #[argh(
+        option,
+        short = 'e',
+        description = "(OPTIONAL) encode output\n   options: url, json",
+        from_str_fn(encoder_from_arg)
+    )]
+    pub encoder: Option<EncoderKind>,
     #[argh(
         switch,
         short = 'p',
@@ -75,7 +83,8 @@ pub struct AddCmd {
 
 fn aliases_from_arg(arg: &str) -> Result<Vec<String>, String> {
     let aliases: Vec<String> = arg
-        .splitn(4, ",")
+        .splitn(5, ",")
+        .take(4)
         .map(|alias| alias.trim().to_lowercase())
         .collect();
 
@@ -97,15 +106,12 @@ use std::path::PathBuf;
 pub struct ExportCmd {
     #[argh(
         option,
-        long = "output-file",
         short = 'o',
-        default = "PathBuf::from(\"flurry_exports.toml\")",
+        default = "PathBuf::from(\"flurry_exports.db\")",
         description = "output path"
     )]
     pub output_file: PathBuf,
 }
-
-type MaybeBin = String;
 
 #[derive(FromArgs, PartialEq)]
 #[argh(
@@ -116,12 +122,6 @@ type MaybeBin = String;
 pub struct GoCmd {
     #[argh(positional, description = "command key")]
     pub command: String,
-    #[argh(
-        option,
-        short = 'p',
-        description = "browser used to open target (if url or web-query)"
-    )]
-    pub program: Option<MaybeBin>,
     #[argh(
         switch,
         description = "randomize file order for utils with dir_scan enabled"
@@ -138,12 +138,7 @@ pub struct GoCmd {
     description = "Import and append commands from a file"
 )]
 pub struct ImportCmd {
-    #[argh(
-        option,
-        long = "file-path",
-        short = 'f',
-        description = "import file path"
-    )]
+    #[argh(option, short = 'f', description = "import file path")]
     pub file_path: PathBuf,
 }
 
@@ -154,6 +149,153 @@ pub struct InteractiveMode {}
 #[derive(FromArgs, PartialEq)]
 #[argh(subcommand, name = "rm", description = "Remove a generated command")]
 pub struct RmCmd {
+    #[argh(switch, short = 'k', description = "remove alias, not command")]
+    pub alias: bool,
     #[argh(positional, short = 'k', description = "command name to remove")]
     pub key: String,
 }
+
+use crate::config::types::{EncoderKind, FileTypeFilter, FilterKind, PermissionsKind};
+
+#[derive(FromArgs, PartialEq)]
+#[argh(subcommand, name = "set", description = "Edit a command's attributes")]
+pub struct SetCmd {
+    #[argh(positional, description = "target command to edit")]
+    pub target: String,
+    #[argh(option, short = 'b', description = "key used to trigger command")]
+    pub bin: Option<String>,
+    #[argh(
+        option,
+        short = 'a',
+        description = "add a new alias (fails if exceeds 4)"
+    )]
+    pub alias: Option<String>,
+    #[argh(
+        option,
+        short = 'p',
+        description = "require permissions check to run this command",
+        from_str_fn(permissions_from_arg)
+    )]
+    pub permissions: Option<PermissionsKind>,
+    #[argh(
+        option,
+        short = 's',
+        description = "set a recursion limit for directory scan",
+        from_str_fn(recursion_limit_from_arg)
+    )]
+    pub scan_dir_depth: Option<ScanDirKind>,
+    #[argh(
+        option,
+        short = 'w',
+        description = "query the target system for the binary location (or alias) instead of executing the raw value of bin"
+    )]
+    pub query_which: Option<bool>,
+    #[argh(
+        option,
+        short = 'x',
+        description = "add file extension filters for recursive directory scans",
+        from_str_fn(exts_filter_from_arg)
+    )]
+    pub ext_filter: Option<FilterKind>,
+    #[argh(
+        option,
+        short = 'f',
+        description = "add file type filter (dirs only, files only) for recursive directory scans",
+        from_str_fn(file_type_filter_from_arg)
+    )]
+    pub file_type_filter: Option<FilterKind>,
+    #[argh(
+        option,
+        short = 'e',
+        description = "add file type filter (dirs only, files only) for recursive directory scans",
+        from_str_fn(encoder_from_arg)
+    )]
+    pub encoder: Option<EncoderKind>,
+    #[argh(
+        option,
+        short = 'n',
+        description = "command's target value",
+        from_str_fn(args_from_arg)
+    )]
+    pub args: Option<Vec<String>>,
+    #[argh(
+        switch,
+        short = 'p',
+        description = "append arguments instead of replacing them"
+    )]
+    pub append_args: bool,
+}
+
+fn recursion_limit_from_arg(arg: &str) -> Result<ScanDirKind, String> {
+    match arg {
+        "max" | "recursive" => Ok(ScanDirKind::Depth(u8::MAX)),
+        _ => match arg.parse::<u8>() {
+            Ok(0) => Ok(ScanDirKind::None),
+            Ok(any) => Ok(ScanDirKind::Depth(any)),
+            _ => Err(format!("{} is not a valid depth", arg)),
+        },
+    }
+}
+
+fn encoder_from_arg(arg: &str) -> Result<EncoderKind, String> {
+    match arg {
+        "url" | "web" => Ok(EncoderKind::Url),
+        "json" => Ok(EncoderKind::Json),
+        _ => Err(String::from("valid inputs are url, json")),
+    }
+}
+
+fn permissions_from_arg(arg: &str) -> Result<PermissionsKind, String> {
+    match arg.trim() {
+        "group" => Ok(PermissionsKind::Group),
+        "user" => Ok(PermissionsKind::User),
+        "root" => Ok(PermissionsKind::Root),
+        "any" | "dfl" | "none" => Ok(PermissionsKind::Any),
+        _ => Err(String::from("valid inputs are group, user, root, any")),
+    }
+}
+
+fn exts_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
+    Ok(FilterKind::Exts(
+        arg.split_ascii_whitespace()
+            .filter_map(|a| {
+                if a.is_empty() {
+                    None
+                } else {
+                    Some(a.to_owned())
+                }
+            })
+            .collect(),
+    ))
+}
+
+fn file_type_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
+    match arg.trim() {
+        "d" | "dir" | "dirs" | "directory" | "directories" => {
+            Ok(FilterKind::FileType(FileTypeFilter::Dirs))
+        }
+        "f" | "file" | "files" => Ok(FilterKind::FileType(FileTypeFilter::Files)),
+        _ => Err(String::from("valid inputs are d, dir, f , file")),
+    }
+}
+
+fn args_from_arg(arg: &str) -> Result<Vec<String>, String> {
+    Ok(arg
+        .split_ascii_whitespace()
+        .filter_map(|a| {
+            if !a.is_empty() {
+                Some(a.to_owned())
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+
+// #[derive(FromArgs, PartialEq)]
+// #[argh(subcommand)]
+// enum FilterOps {
+// Add,
+// Rm,
+// Edit,
+// }

@@ -17,10 +17,7 @@ impl AsRef<OsStr> for BinKind<'_> {
 
 use crate::{
     cli::types::GoCmd,
-    utils::{
-        fs::recursive::{fetch_file_list, Filter},
-        os::ensure_root,
-    },
+    utils::{fs::recursive::*, os::ensure_root},
 };
 
 use rkyv::core_impl::ArchivedOption;
@@ -58,23 +55,57 @@ impl ArchivedGeneratedCommand {
         if let ArchivedPermissionsKind::Root = permissions {
             ensure_root();
         }
-
-        let filter = match filter {
-            ArchivedFilterKind::Exts(exts) => Filter::Exts(exts.as_slice()),
-            ArchivedFilterKind::FileType(ty) => Filter::FileType(ty),
-            ArchivedFilterKind::RegEx(pat) => Filter::Regex(regex::Regex::new(pat)?),
-            ArchivedFilterKind::Raw(pat) => Filter::Raw(pat),
-            _ => Filter::None,
-        };
-
         if let ArchivedScanDirKind::Depth(depth) = scan_dir {
-            let files_list = args.iter().fold(vec![], |mut list, a| {
-                match fetch_file_list(a, *depth, *random, &filter) {
-                    Ok(ref mut files) => list.append(files),
-                    Err(e) => eprintln!("Error getting files for {}: {}", a, e),
-                }
-                list
-            });
+            let files_list =
+                args.iter()
+                    .fold(Ok(vec![]), |mut res, a| -> Result<Vec<PathBuf>> {
+                        if let Ok(ref mut list) = res {
+                            match filter {
+                                ArchivedFiltersKind::One(filter) => {
+                                    let filter = match filter {
+                                        ArchivedFilterKind::Exts(exts) => Filter::Exts(exts),
+                                        ArchivedFilterKind::FileType(ty) => Filter::FileType(ty),
+                                        ArchivedFilterKind::RegEx(pat) => {
+                                            Filter::Regex(regex::Regex::new(pat)?)
+                                        }
+                                        ArchivedFilterKind::Raw(pat) => Filter::Raw(pat),
+                                        _ => Filter::None,
+                                    };
+
+                                    list.append(&mut fetch_file_list(a, *depth, *random, &filter)?);
+                                }
+                                ArchivedFiltersKind::Many(rkyvd_filters) => {
+                                    let mut filters = vec![];
+                                    for filter in rkyvd_filters.iter() {
+                                        filters.push(match filter {
+                                            ArchivedFilterKind::Exts(exts) => Filter::Exts(exts),
+                                            ArchivedFilterKind::FileType(ty) => {
+                                                Filter::FileType(ty)
+                                            }
+                                            ArchivedFilterKind::RegEx(pat) => {
+                                                Filter::Regex(regex::Regex::new(pat)?)
+                                            }
+                                            ArchivedFilterKind::Raw(pat) => Filter::Raw(pat),
+                                            _ => Filter::None,
+                                        })
+                                    }
+
+                                    list.append(&mut fetch_many_filtered_file_list(
+                                        a, *depth, *random, filters,
+                                    )?);
+                                }
+                                ArchivedFiltersKind::None => {
+                                    list.append(&mut fetch_file_list::<&String, &str>(
+                                        a,
+                                        *depth,
+                                        *random,
+                                        &Filter::None,
+                                    )?);
+                                }
+                            }
+                        }
+                        res
+                    })?;
 
             match &dfl_args {
                 ArchivedOption::Some(dfl) => {

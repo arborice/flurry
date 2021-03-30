@@ -34,6 +34,17 @@ impl ArchivedGeneratedCommands {
 		}
 		None
 	}
+
+	pub fn is_alias<S: AsRef<str>>(&self, key: S) -> bool {
+		if !self.contains_key(&key) {
+			return false;
+		}
+		if let ArchivedOption::Some(aliases) = &self.aliases {
+			return aliases.contains_key(key.as_ref());
+		}
+
+		false
+	}
 }
 
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
@@ -76,7 +87,7 @@ impl Default for PermissionsKind {
 	}
 }
 
-#[derive(Debug, PartialEq, Eq, Archive, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Archive, Deserialize, Serialize)]
 pub enum FileTypeFilter {
 	Dirs,
 	Files,
@@ -103,7 +114,7 @@ impl PartialEq<&ArchivedFileTypeFilter> for FileTypeFilter {
 	}
 }
 
-#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum FilterKind {
 	Exts(Vec<String>),
 	FileType(FileTypeFilter),
@@ -112,8 +123,22 @@ pub enum FilterKind {
 	None,
 }
 
+#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
+pub enum FiltersKind {
+	One(FilterKind),
+	Many(Vec<FilterKind>),
+	None,
+}
+
+impl Default for FiltersKind {
+	fn default() -> FiltersKind {
+		FiltersKind::None
+	}
+}
+
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum EncoderKind {
+	Json,
 	Url,
 	None,
 }
@@ -150,8 +175,9 @@ impl From<bool> for ScanDirKind {
 pub struct GeneratedCommand {
 	pub bin: String,
 	pub dfl_args: Option<Vec<String>>,
+	pub encoder: Option<EncoderKind>,
 	pub aliases: Option<Vec<String>>,
-	pub filter: FilterKind,
+	pub filter: FiltersKind,
 	pub permissions: PermissionsKind,
 	pub query_which: bool,
 	pub scan_dir: ScanDirKind,
@@ -164,6 +190,7 @@ impl GeneratedCommand {
 			aliases,
 			args,
 			bin,
+			encoder,
 			key,
 			permissions,
 			query_which,
@@ -177,13 +204,14 @@ impl GeneratedCommand {
 			GeneratedCommand {
 				aliases,
 				bin,
+				encoder,
 				permissions: permissions.into(),
 				scan_dir: scan_dir.into(),
 				query_which,
 				dfl_args: if args.is_empty() { None } else { Some(args) },
 				filter: match filter {
-					Some(e) => FilterKind::RegEx(e),
-					None => FilterKind::None,
+					Some(e) => FiltersKind::One(FilterKind::RegEx(e)),
+					None => FiltersKind::None,
 				},
 			},
 		)

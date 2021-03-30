@@ -28,8 +28,7 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
             match exit_status.last_requested_action {
                 Some(TuiInputHandler::GO) => {
                     if let Some(key) = exit_status.go_request {
-                        let key: &str = key.as_ref();
-                        if let Some(cmd) = commands.get(key) {
+                        if let Some(cmd) = gen_cmds.get(&key) {
                             match &cmd.dfl_args {
                                 ArchivedOption::Some(args) => {
                                     run_cmd!(@ cmd.bin.as_ref() => args.iter().map(|a| a.as_ref()))
