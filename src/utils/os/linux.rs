@@ -24,10 +24,9 @@ pub fn desktop_file_to_exec(mime_dfl: String) -> Result<String> {
 
 fn find_exec_by_bytes(search_bytes: Vec<u8>) -> Option<String> {
     let (exec_pat, pat_0) = (b"Exec=", b'E');
-    let last = search_bytes.len();
-    let (mut start, mut end) = (last - 5, last);
+    let (mut start, mut end) = (0, search_bytes.len());
 
-    while start > 0 {
+    while start < end {
         if pat_0 == search_bytes[start] && exec_pat == &search_bytes[start..end] {
             let wsp = &search_bytes[start..]
                 .iter()
@@ -35,8 +34,8 @@ fn find_exec_by_bytes(search_bytes: Vec<u8>) -> Option<String> {
                 + start;
             return String::from_utf8(search_bytes[end..wsp].to_vec()).ok();
         }
-        start -= 1;
-        end -= 1;
+        start += 1;
+        end += 1;
     }
     None
 }

@@ -26,6 +26,18 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
 
         if exit_status.success {
             match exit_status.last_requested_action {
+                Some(TuiInputHandler::ADD) => {
+                    if let Some((key, cmd)) = exit_status.new_cmd {
+                        if gen_cmds.contains_key(&key) {
+                            return Err(anyhow!("{} is already in the database!", key));
+                        }
+                        let mut gen_cmds = gen_cmds.deserialize(&mut AllocDeserializer)?;
+                        if let Some(ref mut cmds) = gen_cmds.commands {
+                            cmds.insert(key, cmd);
+                        }
+                        return overwrite_cmds(gen_cmds);
+                    }
+                }
                 Some(TuiInputHandler::GO) => {
                     if let Some(key) = exit_status.go_request {
                         if let Some(cmd) = gen_cmds.get(&key) {

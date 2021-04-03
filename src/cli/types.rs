@@ -81,17 +81,17 @@ pub struct AddCmd {
     pub args: Vec<String>,
 }
 
-fn aliases_from_arg(arg: &str) -> Result<Vec<String>, String> {
+pub fn aliases_from_arg(arg: &str) -> Result<Vec<String>, String> {
     let aliases: Vec<String> = arg
         .splitn(5, ",")
         .take(4)
         .map(|alias| alias.trim().to_lowercase())
         .collect();
 
-    if aliases.is_empty() {
-        Err(format!("No aliases provided!"))
-    } else {
+    if !aliases.is_empty() {
         Ok(aliases)
+    } else {
+        Err("No aliases provided!".into())
     }
 }
 
@@ -226,9 +226,10 @@ pub struct SetCmd {
     pub append_args: bool,
 }
 
-fn recursion_limit_from_arg(arg: &str) -> Result<ScanDirKind, String> {
+pub fn recursion_limit_from_arg(arg: &str) -> Result<ScanDirKind, String> {
     match arg {
         "max" | "recursive" => Ok(ScanDirKind::Depth(u8::MAX)),
+        "none" => Ok(ScanDirKind::None),
         _ => match arg.parse::<u8>() {
             Ok(0) => Ok(ScanDirKind::None),
             Ok(any) => Ok(ScanDirKind::Depth(any)),
@@ -237,7 +238,7 @@ fn recursion_limit_from_arg(arg: &str) -> Result<ScanDirKind, String> {
     }
 }
 
-fn encoder_from_arg(arg: &str) -> Result<EncoderKind, String> {
+pub fn encoder_from_arg(arg: &str) -> Result<EncoderKind, String> {
     match arg {
         "url" | "web" => Ok(EncoderKind::Url),
         "json" => Ok(EncoderKind::Json),
@@ -245,7 +246,7 @@ fn encoder_from_arg(arg: &str) -> Result<EncoderKind, String> {
     }
 }
 
-fn permissions_from_arg(arg: &str) -> Result<PermissionsKind, String> {
+pub fn permissions_from_arg(arg: &str) -> Result<PermissionsKind, String> {
     match arg.trim() {
         "group" => Ok(PermissionsKind::Group),
         "user" => Ok(PermissionsKind::User),
@@ -255,21 +256,13 @@ fn permissions_from_arg(arg: &str) -> Result<PermissionsKind, String> {
     }
 }
 
-fn exts_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
-    Ok(FilterKind::Exts(
-        arg.split_ascii_whitespace()
-            .filter_map(|a| {
-                if a.is_empty() {
-                    None
-                } else {
-                    Some(a.to_owned())
-                }
-            })
-            .collect(),
-    ))
+pub fn exts_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
+    args_from_arg(arg)
+        .map(|exts| FilterKind::Exts(exts))
+        .map_err(|_| "no filters provided!".into())
 }
 
-fn file_type_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
+pub fn file_type_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
     match arg.trim() {
         "d" | "dir" | "dirs" | "directory" | "directories" => {
             Ok(FilterKind::FileType(FileTypeFilter::Dirs))
@@ -279,8 +272,8 @@ fn file_type_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
     }
 }
 
-fn args_from_arg(arg: &str) -> Result<Vec<String>, String> {
-    Ok(arg
+pub fn args_from_arg(arg: &str) -> Result<Vec<String>, String> {
+    let args: Vec<String> = arg
         .split_ascii_whitespace()
         .filter_map(|a| {
             if !a.is_empty() {
@@ -289,7 +282,13 @@ fn args_from_arg(arg: &str) -> Result<Vec<String>, String> {
                 None
             }
         })
-        .collect())
+        .collect();
+
+    if !args.is_empty() {
+        Ok(args)
+    } else {
+        Err("no args provided!".into())
+    }
 }
 
 // #[derive(FromArgs, PartialEq)]

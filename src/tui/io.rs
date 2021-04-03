@@ -30,7 +30,9 @@ pub fn spawn_event_loop() -> Receiver<Event> {
     rx
 }
 
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
+use crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use tinyvec::{array_vec, ArrayVec};
 
 pub type Ec = [EventCap; 3];
@@ -40,7 +42,6 @@ pub struct TuiInputHandler {
     pub accept: EventArray,
     pub exit: EventArray,
     pub reject: EventArray,
-    pub select: EventArray,
     pub unselect: EventArray,
 }
 
@@ -50,7 +51,6 @@ impl Default for TuiInputHandler {
             accept: array_vec!(Ec => EventCap::with_key('y')),
             exit: array_vec!(Ec => EventCap::with_key('q'), EventCap::ctrl_c()),
             reject: array_vec!(Ec => EventCap::with_key('n'), EventCap::Key(KeyEvent::from(KeyCode::Esc))),
-            select: array_vec!(Ec => EventCap::with_key(' '), EventCap::with_key('\n'), EventCap::LeftClick),
             unselect: array_vec!(Ec => EventCap::with_key('u'), EventCap::with_key('r'), EventCap::Key(KeyEvent::from(KeyCode::Delete))),
         }
     }
@@ -80,6 +80,12 @@ impl TuiInputHandler {
         }) = ev
         {
             true
+        } else if let Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            ..
+        }) = ev
+        {
+            true
         } else {
             false
         }
@@ -105,10 +111,6 @@ impl TuiInputHandler {
         self.reject.iter().any(|input| input == ev)
     }
 
-    pub fn selects(&self, ev: &Event) -> bool {
-        self.select.iter().any(|input| input == ev)
-    }
-
     pub fn unselects(&self, ev: &Event) -> bool {
         self.unselect.iter().any(|input| input == ev)
     }
@@ -121,9 +123,6 @@ impl TuiInputHandler {
 #[derive(Clone, PartialEq, Eq)]
 pub enum EventCap {
     Key(KeyEvent),
-    LeftClick,
-    #[allow(dead_code)]
-    RightClick,
 }
 
 impl Default for EventCap {
@@ -148,20 +147,6 @@ impl PartialEq<Event> for EventCap {
             EventCap::Key(key) => {
                 if let Event::Key(ke) = event {
                     ke == key
-                } else {
-                    false
-                }
-            }
-            EventCap::LeftClick => {
-                if let Event::Mouse(me) = event {
-                    me.kind == MouseEventKind::Down(MouseButton::Left)
-                } else {
-                    false
-                }
-            }
-            EventCap::RightClick => {
-                if let Event::Mouse(me) = event {
-                    me.kind == MouseEventKind::Down(MouseButton::Right)
                 } else {
                     false
                 }

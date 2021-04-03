@@ -123,6 +123,12 @@ pub enum FilterKind {
 	None,
 }
 
+impl Default for FilterKind {
+	fn default() -> FilterKind {
+		FilterKind::None
+	}
+}
+
 #[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum FiltersKind {
 	One(FilterKind),
@@ -141,12 +147,6 @@ pub enum EncoderKind {
 	Json,
 	Url,
 	None,
-}
-
-impl Default for FilterKind {
-	fn default() -> FilterKind {
-		FilterKind::None
-	}
 }
 
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]

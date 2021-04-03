@@ -1,24 +1,156 @@
-use super::*;
 use crate::{
     prelude::*,
     tui::{
         layouts::{full_win_layout, table_layout},
         prelude::*,
-        widgets::popup::render_popup,
+        widgets::*,
     },
 };
 use crossterm::{event::*, execute, terminal::*};
 use tui::{backend::CrosstermBackend, Terminal};
 
+enum ScanDirOpts {
+    True {
+        depth: String,
+        ext_filters: String,
+        file_type_filter: String,
+        raw_filters: String,
+        regex_filters: String,
+    },
+    False,
+}
+
+impl Default for ScanDirOpts {
+    fn default() -> ScanDirOpts {
+        ScanDirOpts::False
+    }
+}
+
+#[derive(Default)]
+pub struct AddCmdUi {
+    buf: String,
+    bin: String,
+    joined_args: String,
+    joined_aliases: String,
+    encoder: String,
+    permissions: String,
+    query_which: String,
+    scan_dir: ScanDirOpts,
+}
+
+fn parse_with_delim(arg: String, delimiter: &str) -> Option<Vec<String>> {
+    let split: Vec<String> = arg
+        .split(delimiter)
+        .filter_map(|a| {
+            if a.is_empty() {
+                None
+            } else {
+                Some(a.to_owned())
+            }
+        })
+        .collect();
+
+    if split.is_empty() {
+        None
+    } else {
+        Some(split)
+    }
+}
+
+impl AddCmdUi {
+    pub fn to_cmd(self) -> Result<GeneratedCommand> {
+        use crate::cli::types::{
+            aliases_from_arg, args_from_arg, encoder_from_arg, exts_filter_from_arg,
+            file_type_filter_from_arg, permissions_from_arg, recursion_limit_from_arg,
+        };
+
+        let aliases = aliases_from_arg(&self.joined_aliases).ok();
+        let dfl_args = args_from_arg(&self.joined_args).ok();
+        let encoder = encoder_from_arg(&self.encoder).ok();
+        let permissions = permissions_from_arg(&self.permissions).or_else(|e| bail!(e))?;
+        let query_which = match self.query_which.as_str() {
+            "y" | "yes" | "true" => true,
+            "f" | "n" | "no" | "false" => false,
+            _ => return Err(anyhow!("not a valid input!")),
+        };
+
+        let (scan_dir, filter) = match self.scan_dir {
+            ScanDirOpts::False => (ScanDirKind::None, FiltersKind::None),
+            ScanDirOpts::True {
+                depth,
+                ext_filters,
+                file_type_filter,
+                raw_filters,
+                regex_filters,
+            } => {
+                let scan_dir = recursion_limit_from_arg(&depth).or_else(|e| bail!(e))?;
+                let mut filters = vec![];
+
+                if let Ok(ext_filters) = exts_filter_from_arg(&ext_filters) {
+                    filters.push(ext_filters);
+                }
+                if let Ok(file_type_filter) = file_type_filter_from_arg(&file_type_filter) {
+                    filters.push(file_type_filter);
+                }
+                if let Some(ref mut regex_filters) =
+                    parse_with_delim(regex_filters, " ;;; ").map(|mut f| {
+                        f.drain(..)
+                            .map(|f| FilterKind::RegEx(f))
+                            .collect::<Vec<FilterKind>>()
+                    })
+                {
+                    filters.append(regex_filters);
+                }
+                if let Some(ref mut raw_filters) =
+                    parse_with_delim(raw_filters, " ;;; ").map(|mut f| {
+                        f.drain(..)
+                            .map(|f| FilterKind::Raw(f))
+                            .collect::<Vec<FilterKind>>()
+                    })
+                {
+                    filters.append(raw_filters);
+                }
+
+                match filters.len() {
+                    0 => (scan_dir, FiltersKind::None),
+                    1 => (
+                        scan_dir,
+                        FiltersKind::One(filters.drain(..).nth(0).unwrap()),
+                    ),
+                    _ => (scan_dir, FiltersKind::Many(filters)),
+                }
+            }
+        };
+
+        Ok(GeneratedCommand {
+            aliases,
+            bin: self.bin,
+            dfl_args,
+            encoder,
+            filter,
+            permissions,
+            query_which,
+            scan_dir,
+        })
+    }
+}
+
 pub struct TableExitStatus {
     pub go_request: Option<String>,
     pub last_requested_action: Option<char>,
+    pub new_cmd: Option<(String, GeneratedCommand)>,
     pub rm_selection: Vec<String>,
     pub success: bool,
 }
 
-impl<'cmds> StatefulCmdsTable<'cmds> {
+use std::{cell::RefCell, sync::Mutex};
+
+impl StatefulCmdsTable<'_> {
     fn add_handler(&mut self, _exit_status: &mut TableExitStatus) {
+        todo!();
+    }
+
+    fn _edit_handler(&mut self, _exit_status: &mut TableExitStatus) {
         todo!();
     }
 
@@ -46,6 +178,7 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
 
         let exit_requested = &mut false;
         let mut exit_status = TableExitStatus {
+            new_cmd: None,
             go_request: None,
             last_requested_action: None,
             rm_selection: vec![],
@@ -61,29 +194,17 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
         let mut terminal = Terminal::new(backend)?;
 
         let rx = spawn_event_loop();
-        let confirm_dialog_open = &mut false;
-        let last_requested_popup: &mut Option<&PopupOpts> = &mut None;
-        let _rm_popup = PopupOpts {
-            title: "Confirm Deletion",
-            message: "Remove {{ ctx }}",
-            requires_context: true,
-        };
+
+        let last_requested_popup: RefCell<Mutex<PopupWidget>> =
+            RefCell::from(Mutex::from(PopupWidget::default()));
 
         loop {
             terminal.draw(|frame| {
                 let layout = full_win_layout(frame);
                 let _table = table_layout(self, frame, layout, *selected_style);
 
-                if let Some(popup_opts) = last_requested_popup {
-                    if *confirm_dialog_open {
-                        if let Some(selected_index) = self.state.selected() {
-                            render_popup(
-                                frame,
-                                popup_opts,
-                                self.cmds.borrow()[selected_index].0.as_ref(),
-                            );
-                        }
-                    }
+                if let Ok(popup_guard) = last_requested_popup.borrow_mut().lock() {
+                    (*popup_guard).render(frame);
                 }
             })?;
 
@@ -101,6 +222,12 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
 
             match event {
                 add if input_handler.trigger_add(&add) => {
+                    if let Ok(mut guard) = last_requested_popup.borrow_mut().lock() {
+                        *guard = PopupWidget::Add {
+                            message: "testing",
+                            title: "Create a command",
+                        };
+                    }
                     *exit_requested = true;
                     exit_status_ref
                         .last_requested_action
@@ -115,6 +242,15 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
                     self.go_handler(exit_status_ref);
                 }
                 rm if input_handler.trigger_rm(&rm) => {
+                    if let Ok(mut guard) = last_requested_popup.borrow_mut().lock() {
+                        if let Some(selected_index) = self.state.selected() {
+                            *guard = PopupWidget::Confirm {
+                                message: "Confirm Deletion",
+                                title: "Remove {{ ctx }}",
+                                context: Some(self.cmds.borrow()[selected_index].0.as_ref()),
+                            };
+                        }
+                    }
                     exit_status_ref
                         .last_requested_action
                         .replace(TuiInputHandler::RM);
@@ -122,21 +258,19 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
                 }
                 a if input_handler.accepts(&a) => {
                     exit_status_ref.success = true;
-                    if *confirm_dialog_open {
-                        *confirm_dialog_open = false;
+                    if let Ok(mut popup) = last_requested_popup.borrow_mut().lock() {
+                        if (*popup).is_open() {
+                            *popup = PopupWidget::closed();
+                        }
                     }
                 }
                 r if input_handler.rejects(&r) => {
                     exit_status_ref.success = false;
-                    *confirm_dialog_open = false;
-                }
-                s if input_handler.selects(&s) => {
-                    if let Some(popup_opts) = last_requested_popup {
-                        if popup_opts.requires_context {
-                            *confirm_dialog_open = true;
-                        }
+                    if let Ok(mut popup) = last_requested_popup.borrow_mut().lock() {
+                        *popup = PopupWidget::closed();
                     }
                 }
+                // s if input_handler.selects(&s) => {}
                 u if input_handler.unselects(&u) => {
                     if let Some(selected_index) = self.state.selected() {
                         self.selected_indices.retain(|s| *s != selected_index);
