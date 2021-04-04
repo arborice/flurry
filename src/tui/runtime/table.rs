@@ -149,6 +149,7 @@ impl StatefulCmdsTable<'_> {
         if let Some(selected_index) = self.state.selected() {
             let key = self.cmds.borrow()[selected_index].0.to_string();
             exit_status.go_request.replace(key);
+            exit_status.success = true;
         }
     }
 
@@ -157,6 +158,7 @@ impl StatefulCmdsTable<'_> {
             let key = self.cmds.borrow()[selected_index].0.to_string();
             exit_status.rm_selection.push(key);
             self.selected_indices.push(selected_index);
+            exit_status.success = true;
         }
     }
 
@@ -172,7 +174,7 @@ impl StatefulCmdsTable<'_> {
             go_request: None,
             last_requested_action: None,
             rm_selection: vec![],
-            success: true,
+            success: false,
         };
         let exit_status_ref = &mut exit_status;
 
@@ -241,6 +243,7 @@ impl StatefulCmdsTable<'_> {
 
                     if seq.done() {
                         seq.populate(&mut exit_status_ref.new_cmd);
+                        exit_status_ref.success = true;
                         request_close = true;
                     }
 
@@ -287,7 +290,6 @@ impl StatefulCmdsTable<'_> {
                     self.rm_handler(exit_status_ref)
                 }
                 a if input_handler.accepts(&a) => {
-                    exit_status_ref.success = true;
                     if let Ok(mut popup) = last_requested_popup.borrow_mut().lock() {
                         if (*popup).is_open() {
                             *popup = PopupWidget::closed();
@@ -300,7 +302,6 @@ impl StatefulCmdsTable<'_> {
                         *popup = PopupWidget::closed();
                     }
                 }
-                // s if input_handler.selects(&s) => {}
                 u if input_handler.unselects(&u) => {
                     if let Some(selected_index) = self.state.selected() {
                         self.selected_indices.retain(|s| *s != selected_index);

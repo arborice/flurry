@@ -55,19 +55,14 @@ pub enum PermissionsKind {
 	User,
 }
 
-use std::fmt::{Display, Formatter, Result as FmtResult};
-impl Display for ArchivedPermissionsKind {
-	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-		write!(
-			f,
-			"{}",
-			match self {
-				ArchivedPermissionsKind::Any => "any",
-				ArchivedPermissionsKind::Group => "group",
-				ArchivedPermissionsKind::Root => "root",
-				ArchivedPermissionsKind::User => "user",
-			}
-		)
+impl AsRef<str> for ArchivedPermissionsKind {
+	fn as_ref(&self) -> &str {
+		match self {
+			ArchivedPermissionsKind::Any => "any",
+			ArchivedPermissionsKind::Group => "group",
+			ArchivedPermissionsKind::Root => "root",
+			ArchivedPermissionsKind::User => "user",
+		}
 	}
 }
 

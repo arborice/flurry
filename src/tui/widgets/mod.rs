@@ -44,13 +44,13 @@ impl AddSequence {
 
     pub fn populate(&mut self, add_cmd: &mut Option<AddCmdUi>) {
         add_cmd.replace(AddCmdUi {
-            key: self.stages[0].1.trim_end_matches('\n').to_owned(),
-            bin: self.stages[1].1.trim_end_matches('\n').to_owned(),
-            joined_args: self.stages[2].1.trim_end_matches('\n').to_owned(),
-            joined_aliases: self.stages[3].1.trim_end_matches('\n').to_owned(),
-            encoder: self.stages[4].1.trim_end_matches('\n').to_owned(),
-            permissions: self.stages[5].1.trim_end_matches('\n').to_owned(),
-            query_which: self.stages[6].1.trim_end_matches('\n').to_owned(),
+            key: self.stages[0].1.drain(..).collect(),
+            bin: self.stages[1].1.drain(..).collect(),
+            joined_args: self.stages[2].1.drain(..).collect(),
+            joined_aliases: self.stages[3].1.drain(..).collect(),
+            encoder: self.stages[4].1.drain(..).collect(),
+            permissions: self.stages[5].1.drain(..).collect(),
+            query_which: self.stages[6].1.drain(..).collect(),
             scan_dir: None,
         });
     }

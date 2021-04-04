@@ -31,16 +31,13 @@ pub fn table_layout<B: Backend>(
                 ArchivedOption::Some(aliases) => aliases.join(", "),
                 ArchivedOption::None => String::new(),
             };
-            Row::new(
-                [
-                    key.to_string(),
-                    cmd.bin.to_string(),
-                    aliases,
-                    cmd.permissions.to_string(),
-                ]
-                .iter()
-                .map(|c| Cell::from(c.clone())),
-            )
+
+            Row::new(std::array::IntoIter::new([
+                Cell::from(key.as_str()),
+                Cell::from(cmd.bin.as_str()),
+                Cell::from(aliases),
+                Cell::from(cmd.permissions.as_ref()),
+            ]))
             .height(1)
         }))
         .highlight_style(selected_style)
