@@ -48,7 +48,7 @@ pub struct TuiInputHandler {
 impl Default for TuiInputHandler {
     fn default() -> TuiInputHandler {
         TuiInputHandler {
-            accept: array_vec!(Ec => EventCap::with_key('y')),
+            accept: array_vec!(Ec => EventCap::with_key('y'), EventCap::with_key('\n')),
             exit: array_vec!(Ec => EventCap::with_key('q'), EventCap::ctrl_c()),
             reject: array_vec!(Ec => EventCap::with_key('n'), EventCap::Key(KeyEvent::from(KeyCode::Esc))),
             unselect: array_vec!(Ec => EventCap::with_key('u'), EventCap::with_key('r'), EventCap::Key(KeyEvent::from(KeyCode::Delete))),

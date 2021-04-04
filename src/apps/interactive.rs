@@ -27,7 +27,9 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
         if exit_status.success {
             match exit_status.last_requested_action {
                 Some(TuiInputHandler::ADD) => {
-                    if let Some((key, cmd)) = exit_status.new_cmd {
+                    if let Some(cmd) = exit_status.new_cmd {
+                        let (key, cmd) = cmd.to_cmd()?;
+
                         if gen_cmds.contains_key(&key) {
                             return Err(anyhow!("{} is already in the database!", key));
                         }
@@ -57,7 +59,14 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
                     if let Some(ref mut cmds) = gen_cmds.commands {
                         cmds.retain(|key, _| !rm_selection.iter().any(|k| k == key));
                     }
-                    return overwrite_cmds(gen_cmds);
+
+                    match overwrite_cmds(gen_cmds) {
+                        Ok(_) => {
+                            println!("Removed {}", rm_selection.join(", "));
+                            return Ok(());
+                        }
+                        Err(e) => bail!(e),
+                    }
                 }
                 _ => {}
             }

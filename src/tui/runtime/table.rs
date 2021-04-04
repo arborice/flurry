@@ -9,33 +9,25 @@ use crate::{
 use crossterm::{event::*, execute, terminal::*};
 use tui::{backend::CrosstermBackend, Terminal};
 
-enum ScanDirOpts {
-    True {
-        depth: String,
-        ext_filters: String,
-        file_type_filter: String,
-        raw_filters: String,
-        regex_filters: String,
-    },
-    False,
-}
-
-impl Default for ScanDirOpts {
-    fn default() -> ScanDirOpts {
-        ScanDirOpts::False
-    }
+#[derive(Default)]
+pub struct ScanDirOpts {
+    pub depth: String,
+    pub ext_filters: String,
+    pub file_type_filter: String,
+    pub raw_filters: String,
+    pub regex_filters: String,
 }
 
 #[derive(Default)]
 pub struct AddCmdUi {
-    buf: String,
-    bin: String,
-    joined_args: String,
-    joined_aliases: String,
-    encoder: String,
-    permissions: String,
-    query_which: String,
-    scan_dir: ScanDirOpts,
+    pub key: String,
+    pub bin: String,
+    pub joined_args: String,
+    pub joined_aliases: String,
+    pub encoder: String,
+    pub permissions: String,
+    pub query_which: String,
+    pub scan_dir: Option<ScanDirOpts>,
 }
 
 fn parse_with_delim(arg: String, delimiter: &str) -> Option<Vec<String>> {
@@ -58,7 +50,7 @@ fn parse_with_delim(arg: String, delimiter: &str) -> Option<Vec<String>> {
 }
 
 impl AddCmdUi {
-    pub fn to_cmd(self) -> Result<GeneratedCommand> {
+    pub fn to_cmd(self) -> Result<(String, GeneratedCommand)> {
         use crate::cli::types::{
             aliases_from_arg, args_from_arg, encoder_from_arg, exts_filter_from_arg,
             file_type_filter_from_arg, permissions_from_arg, recursion_limit_from_arg,
@@ -75,14 +67,14 @@ impl AddCmdUi {
         };
 
         let (scan_dir, filter) = match self.scan_dir {
-            ScanDirOpts::False => (ScanDirKind::None, FiltersKind::None),
-            ScanDirOpts::True {
+            None => (ScanDirKind::None, FiltersKind::None),
+            Some(ScanDirOpts {
                 depth,
                 ext_filters,
                 file_type_filter,
                 raw_filters,
                 regex_filters,
-            } => {
+            }) => {
                 let scan_dir = recursion_limit_from_arg(&depth).or_else(|e| bail!(e))?;
                 let mut filters = vec![];
 
@@ -122,23 +114,26 @@ impl AddCmdUi {
             }
         };
 
-        Ok(GeneratedCommand {
-            aliases,
-            bin: self.bin,
-            dfl_args,
-            encoder,
-            filter,
-            permissions,
-            query_which,
-            scan_dir,
-        })
+        Ok((
+            self.key,
+            GeneratedCommand {
+                aliases,
+                bin: self.bin,
+                dfl_args,
+                encoder,
+                filter,
+                permissions,
+                query_which,
+                scan_dir,
+            },
+        ))
     }
 }
 
 pub struct TableExitStatus {
     pub go_request: Option<String>,
     pub last_requested_action: Option<char>,
-    pub new_cmd: Option<(String, GeneratedCommand)>,
+    pub new_cmd: Option<AddCmdUi>,
     pub rm_selection: Vec<String>,
     pub success: bool,
 }
@@ -146,10 +141,6 @@ pub struct TableExitStatus {
 use std::{cell::RefCell, sync::Mutex};
 
 impl StatefulCmdsTable<'_> {
-    fn add_handler(&mut self, _exit_status: &mut TableExitStatus) {
-        todo!();
-    }
-
     fn _edit_handler(&mut self, _exit_status: &mut TableExitStatus) {
         todo!();
     }
@@ -173,7 +164,6 @@ impl StatefulCmdsTable<'_> {
         let TuiOpts {
             selected_style,
             input_handler,
-            ..
         } = &opts;
 
         let exit_requested = &mut false;
@@ -220,19 +210,59 @@ impl StatefulCmdsTable<'_> {
                 self.select(row as usize - 2);
             }
 
+            if let Ok(mut popup_guard) = last_requested_popup.borrow_mut().lock() {
+                let mut request_close = false;
+                if let PopupWidget::Add(ref mut seq) = *popup_guard {
+                    match event {
+                        Event::Key(KeyEvent { code, modifiers }) => {
+                            if let KeyCode::Char(c) = code {
+                                if modifiers == KeyModifiers::CONTROL && c == 'c' {
+                                    request_close = true;
+                                } else {
+                                    seq.print(c);
+                                }
+                            }
+
+                            if let KeyCode::Enter = code {
+                                seq.push();
+                            }
+                            if let KeyCode::Backspace = code {
+                                seq.delete();
+                            }
+                            if let KeyCode::Left = code {
+                                seq.pop();
+                            }
+                            if let KeyCode::Esc = code {
+                                request_close = true;
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    if seq.done() {
+                        seq.populate(&mut exit_status_ref.new_cmd);
+                        request_close = true;
+                    }
+
+                    if !request_close {
+                        continue;
+                    }
+                }
+
+                if request_close {
+                    *popup_guard = PopupWidget::closed();
+                    continue;
+                }
+            }
+
             match event {
                 add if input_handler.trigger_add(&add) => {
                     if let Ok(mut guard) = last_requested_popup.borrow_mut().lock() {
-                        *guard = PopupWidget::Add {
-                            message: "testing",
-                            title: "Create a command",
-                        };
+                        *guard = PopupWidget::Add(AddSequence::new());
                     }
-                    *exit_requested = true;
                     exit_status_ref
                         .last_requested_action
                         .replace(TuiInputHandler::ADD);
-                    self.add_handler(exit_status_ref);
                 }
                 go if input_handler.trigger_go(&go) => {
                     *exit_requested = true;
@@ -245,8 +275,8 @@ impl StatefulCmdsTable<'_> {
                     if let Ok(mut guard) = last_requested_popup.borrow_mut().lock() {
                         if let Some(selected_index) = self.state.selected() {
                             *guard = PopupWidget::Confirm {
-                                message: "Confirm Deletion",
-                                title: "Remove {{ ctx }}",
+                                title: "Confirm Deletion",
+                                message: "Remove {{ ctx }}",
                                 context: Some(self.cmds.borrow()[selected_index].0.as_ref()),
                             };
                         }

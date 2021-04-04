@@ -17,6 +17,7 @@ pub enum SubCmds {
     Export(ExportCmd),
     Go(GoCmd),
     Import(ImportCmd),
+    List(ListCmd),
     Rm(RmCmd),
     Set(SetCmd),
     Tui(InteractiveMode),
@@ -112,6 +113,10 @@ pub struct ExportCmd {
     )]
     pub output_file: PathBuf,
 }
+
+#[derive(FromArgs, PartialEq)]
+#[argh(subcommand, name = "list", description = "List all stored commands")]
+pub struct ListCmd {}
 
 #[derive(FromArgs, PartialEq)]
 #[argh(
@@ -290,11 +295,3 @@ pub fn args_from_arg(arg: &str) -> Result<Vec<String>, String> {
         Err("no args provided!".into())
     }
 }
-
-// #[derive(FromArgs, PartialEq)]
-// #[argh(subcommand)]
-// enum FilterOps {
-// Add,
-// Rm,
-// Edit,
-// }
