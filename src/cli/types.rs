@@ -116,7 +116,10 @@ pub struct ExportCmd {
 
 #[derive(FromArgs, PartialEq)]
 #[argh(subcommand, name = "list", description = "List all stored commands")]
-pub struct ListCmd {}
+pub struct ListCmd {
+    #[argh(switch, short = 'a', description = "list with respective aliases")]
+    pub aliases: bool,
+}
 
 #[derive(FromArgs, PartialEq)]
 #[argh(

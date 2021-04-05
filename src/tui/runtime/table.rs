@@ -138,37 +138,41 @@ pub struct TableExitStatus {
     pub success: bool,
 }
 
-use std::{cell::RefCell, sync::Mutex};
+use parking_lot::Mutex;
+use std::cell::RefCell;
 
 impl StatefulCmdsTable<'_> {
     fn _edit_handler(&mut self, _exit_status: &mut TableExitStatus) {
         todo!();
     }
 
-    fn go_handler(&self, exit_status: &mut TableExitStatus) {
-        if let Some(selected_index) = self.state.selected() {
-            let key = self.cmds.borrow()[selected_index].0.to_string();
-            exit_status.go_request.replace(key);
-            exit_status.success = true;
-        }
+    fn go_handler(&self, exit_status: &mut TableExitStatus, selected_index: usize) {
+        let key = self.cmds.borrow()[selected_index].0.to_string();
+        exit_status
+            .last_requested_action
+            .replace(TuiInputHandler::GO);
+        exit_status.go_request.replace(key);
+        exit_status.success = true;
     }
 
-    fn rm_handler(&mut self, exit_status: &mut TableExitStatus) {
-        if let Some(selected_index) = self.state.selected() {
-            let key = self.cmds.borrow()[selected_index].0.to_string();
-            exit_status.rm_selection.push(key);
-            self.selected_indices.push(selected_index);
-            exit_status.success = true;
-        }
+    fn rm_handler(&mut self, exit_status: &mut TableExitStatus, selected_index: usize) {
+        let key = self.cmds.borrow()[selected_index].0.to_string();
+        exit_status
+            .last_requested_action
+            .replace(TuiInputHandler::RM);
+        exit_status.rm_selection.push(key);
+        self.selected_indices.push(selected_index);
+        exit_status.success = true;
     }
 
     pub fn render(&mut self, opts: TuiOpts) -> Result<TableExitStatus> {
         let TuiOpts {
-            selected_style,
-            input_handler,
-        } = &opts;
+            ref selected_style,
+            ref input_handler,
+        } = opts;
 
         let exit_requested = &mut false;
+        let request_popup_close = &mut false;
         let mut exit_status = TableExitStatus {
             new_cmd: None,
             go_request: None,
@@ -195,8 +199,9 @@ impl StatefulCmdsTable<'_> {
                 let layout = full_win_layout(frame);
                 let _table = table_layout(self, frame, layout, *selected_style);
 
-                if let Ok(popup_guard) = last_requested_popup.borrow_mut().lock() {
-                    (*popup_guard).render(frame);
+                {
+                    let popup_guard = last_requested_popup.borrow_mut();
+                    (*popup_guard.lock()).render(frame);
                 }
             })?;
 
@@ -212,14 +217,14 @@ impl StatefulCmdsTable<'_> {
                 self.select(row as usize - 2);
             }
 
-            if let Ok(mut popup_guard) = last_requested_popup.borrow_mut().lock() {
-                let mut request_close = false;
-                if let PopupWidget::Add(ref mut seq) = *popup_guard {
+            {
+                let popup_guard = last_requested_popup.borrow_mut();
+                if let PopupWidget::Add(ref mut seq) = *popup_guard.lock() {
                     match event {
                         Event::Key(KeyEvent { code, modifiers }) => {
                             if let KeyCode::Char(c) = code {
                                 if modifiers == KeyModifiers::CONTROL && c == 'c' {
-                                    request_close = true;
+                                    *request_popup_close = true;
                                 } else {
                                     seq.print(c);
                                 }
@@ -235,7 +240,7 @@ impl StatefulCmdsTable<'_> {
                                 seq.pop();
                             }
                             if let KeyCode::Esc = code {
-                                request_close = true;
+                                *request_popup_close = true;
                             }
                         }
                         _ => {}
@@ -244,63 +249,57 @@ impl StatefulCmdsTable<'_> {
                     if seq.done() {
                         seq.populate(&mut exit_status_ref.new_cmd);
                         exit_status_ref.success = true;
-                        request_close = true;
+                        *request_popup_close = true;
                     }
 
-                    if !request_close {
+                    if !*request_popup_close {
                         continue;
                     }
                 }
 
-                if request_close {
-                    *popup_guard = PopupWidget::closed();
+                if *request_popup_close {
+                    *popup_guard.lock() = PopupWidget::closed();
+                    *request_popup_close = false;
                     continue;
                 }
             }
 
             match event {
                 add if input_handler.trigger_add(&add) => {
-                    if let Ok(mut guard) = last_requested_popup.borrow_mut().lock() {
-                        *guard = PopupWidget::Add(AddSequence::new());
-                    }
+                    let guard = last_requested_popup.borrow_mut();
+                    *guard.lock() = PopupWidget::Add(AddSequence::new());
                     exit_status_ref
                         .last_requested_action
                         .replace(TuiInputHandler::ADD);
                 }
                 go if input_handler.trigger_go(&go) => {
-                    *exit_requested = true;
-                    exit_status_ref
-                        .last_requested_action
-                        .replace(TuiInputHandler::GO);
-                    self.go_handler(exit_status_ref);
+                    if let Some(selected_index) = self.state.selected() {
+                        self.go_handler(exit_status_ref, selected_index);
+                        *exit_requested = true;
+                    }
                 }
                 rm if input_handler.trigger_rm(&rm) => {
-                    if let Ok(mut guard) = last_requested_popup.borrow_mut().lock() {
-                        if let Some(selected_index) = self.state.selected() {
-                            *guard = PopupWidget::Confirm {
-                                title: "Confirm Deletion",
-                                message: "Remove {{ ctx }}",
-                                context: Some(self.cmds.borrow()[selected_index].0.as_ref()),
-                            };
-                        }
+                    if let Some(selected_index) = self.state.selected() {
+                        let guard = last_requested_popup.borrow_mut();
+                        *guard.lock() = PopupWidget::Confirm {
+                            title: "Confirm Deletion",
+                            message: "Remove {{ ctx }}",
+                            context: Some(self.cmds.borrow()[selected_index].0.as_ref()),
+                        };
+
+                        self.rm_handler(exit_status_ref, selected_index);
                     }
-                    exit_status_ref
-                        .last_requested_action
-                        .replace(TuiInputHandler::RM);
-                    self.rm_handler(exit_status_ref)
                 }
                 a if input_handler.accepts(&a) => {
-                    if let Ok(mut popup) = last_requested_popup.borrow_mut().lock() {
-                        if (*popup).is_open() {
-                            *popup = PopupWidget::closed();
-                        }
+                    let popup = last_requested_popup.borrow_mut();
+                    if (*popup.lock()).is_open() {
+                        *popup.lock() = PopupWidget::closed();
                     }
                 }
                 r if input_handler.rejects(&r) => {
                     exit_status_ref.success = false;
-                    if let Ok(mut popup) = last_requested_popup.borrow_mut().lock() {
-                        *popup = PopupWidget::closed();
-                    }
+                    let popup = last_requested_popup.borrow_mut();
+                    *popup.lock() = PopupWidget::closed();
                 }
                 u if input_handler.unselects(&u) => {
                     if let Some(selected_index) = self.state.selected() {

@@ -23,7 +23,7 @@ pub fn exec_cli(app: Flurry) -> Result<()> {
         Some(Add(args)) => apps::add::insert_new_cmd(args, cmds_rkyv)?,
         Some(Import(args)) => apps::import::import_cmds_from_file(args, cmds_rkyv)?,
         Some(Go(args)) => apps::go::dispatch_from_args(args, cmds_rkyv)?,
-        Some(List(_)) => apps::list::list_cmds(cmds_rkyv)?,
+        Some(List(args)) => apps::list::list_cmds(args, cmds_rkyv),
         Some(Rm(args)) => apps::rm::try_rm_cmd(args, cmds_rkyv)?,
         Some(Set(args)) => apps::set_attr::edit_cmd(args, cmds_rkyv)?,
         Some(Tui(_)) => apps::interactive::dispatch_interactive(cmds_rkyv)?,

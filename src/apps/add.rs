@@ -6,10 +6,18 @@ pub fn insert_new_cmd(args: AddCmd, gen_cmds: &ArchivedGeneratedCommands) -> Res
         bail!("A command by that key is in the database!")
     }
 
-    let mut gen_cmds = gen_cmds.deserialize(&mut AllocDeserializer)?;
+    let gen_cmds = gen_cmds.deserialize(&mut AllocDeserializer)?;
     let aliases = args.aliases.clone();
     let (key, cmd) = GeneratedCommand::from_args(args);
 
+    commit_cmd(gen_cmds, (key, cmd), aliases)
+}
+
+pub fn commit_cmd(
+    mut gen_cmds: GeneratedCommands,
+    (key, cmd): (String, GeneratedCommand),
+    aliases: Option<Vec<String>>,
+) -> Result<()> {
     if let Some(ref mut rkyvd_cmds) = gen_cmds.commands {
         if let Some(failed_inserts) = if let Some(ref mut rkyvd_aliases) = gen_cmds.aliases {
             aliases.map(|mut list| {
