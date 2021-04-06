@@ -1,5 +1,11 @@
+use crate::prelude::Seppuku;
 use crossterm::event::{
     Event as CrossEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use std::{
+    sync::mpsc::{channel, Receiver},
+    thread,
+    time::{Duration, Instant},
 };
 use tinyvec::ArrayVec;
 
@@ -7,6 +13,31 @@ use tinyvec::ArrayVec;
 pub struct Event(pub CrossEvent);
 
 impl Event {
+    pub const POLL_RATE: u64 = 100;
+
+    pub fn spawn_loop(poll_rate: u64) -> Receiver<Event> {
+        let (tx, rx) = channel();
+        let tick_rate = Duration::from_millis(poll_rate);
+        thread::spawn(move || {
+            let mut last_tick = Instant::now();
+            loop {
+                let timeout = tick_rate
+                    .checked_sub(last_tick.elapsed())
+                    .unwrap_or_else(|| Duration::from_secs(0));
+                if crossterm::event::poll(timeout).expect("Fatal Crossterm Poll Error") {
+                    if let Ok(event) = crossterm::event::read() {
+                        tx.send(Event(event)).seppuku(None);
+                    }
+                }
+
+                if last_tick.elapsed() >= tick_rate {
+                    last_tick = Instant::now();
+                }
+            }
+        });
+        rx
+    }
+
     pub const CTRL_C: &'static str = "ctrl+c";
     pub const ESC: &'static str = "esc";
     pub const LEFT_CLICK: &'static str = "left";
@@ -38,17 +69,17 @@ impl Event {
         }
     }
 
-    pub fn is_next_trigger(event: &CrossEvent) -> bool {
+    pub fn is_next_trigger(&self) -> bool {
         if let CrossEvent::Mouse(MouseEvent {
             kind: MouseEventKind::ScrollDown,
             ..
-        }) = event
+        }) = self.0
         {
             true
         } else if let CrossEvent::Key(KeyEvent {
             code: KeyCode::Down,
             modifiers: KeyModifiers::NONE,
-        }) = event
+        }) = self.0
         {
             true
         } else {
@@ -56,17 +87,17 @@ impl Event {
         }
     }
 
-    pub fn is_prev_trigger(event: &CrossEvent) -> bool {
+    pub fn is_prev_trigger(&self) -> bool {
         if let CrossEvent::Mouse(MouseEvent {
             kind: MouseEventKind::ScrollUp,
             ..
-        }) = event
+        }) = self.0
         {
             true
         } else if let CrossEvent::Key(KeyEvent {
             code: KeyCode::Up,
             modifiers: KeyModifiers::NONE,
-        }) = event
+        }) = self.0
         {
             true
         } else {
@@ -74,15 +105,15 @@ impl Event {
         }
     }
 
-    pub fn clicked_coords(event: &CrossEvent) -> Option<(u16, u16)> {
+    pub fn clicked_coords(&self) -> Option<(u16, u16)> {
         if let CrossEvent::Mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column,
             row,
             modifiers: KeyModifiers::NONE,
-        }) = event
+        }) = self.0
         {
-            Some((*column, *row))
+            Some((column, row))
         } else {
             None
         }
@@ -107,7 +138,6 @@ impl Default for Event {
 pub type Ec = [Event; 3];
 pub type EventArray = ArrayVec<Ec>;
 
-#[derive(Debug)]
 pub struct EventHandler {
     pub accept: EventArray,
     pub reject: EventArray,
@@ -119,18 +149,12 @@ impl EventHandler {
     pub const GO: char = 'g';
     pub const RM: char = 'r';
 
-    pub fn accepts(&self, event: &CrossEvent) -> bool {
+    pub fn accepts(&self, event: &Event) -> bool {
         self.accept.iter().any(|trigger| trigger == event)
     }
 
-    pub fn rejects(&self, event: &CrossEvent) -> bool {
+    pub fn rejects(&self, event: &Event) -> bool {
         self.reject.iter().any(|trigger| trigger == event)
-    }
-}
-
-impl PartialEq<CrossEvent> for Event {
-    fn eq(&self, event: &CrossEvent) -> bool {
-        &self.0 == event
     }
 }
 
@@ -158,36 +182,4 @@ impl PartialEq<char> for Event {
     fn eq(&self, ch: &char) -> bool {
         ch.eq(self)
     }
-}
-
-use crate::prelude::Seppuku;
-use std::{
-    sync::mpsc::{channel, Receiver},
-    thread,
-    time::{Duration, Instant},
-};
-
-const EVENT_POLL_RATE: u64 = 100;
-
-pub fn spawn_event_loop() -> Receiver<CrossEvent> {
-    let (tx, rx) = channel();
-    let tick_rate = Duration::from_millis(EVENT_POLL_RATE);
-    thread::spawn(move || {
-        let mut last_tick = Instant::now();
-        loop {
-            let timeout = tick_rate
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0));
-            if crossterm::event::poll(timeout).unwrap() {
-                if let Ok(event) = crossterm::event::read() {
-                    tx.send(event).seppuku(None);
-                }
-            }
-
-            if last_tick.elapsed() >= tick_rate {
-                last_tick = Instant::now();
-            }
-        }
-    });
-    rx
 }

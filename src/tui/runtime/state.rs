@@ -1,14 +1,14 @@
 use crate::tui::{layout::*, widgets::*};
 
-pub enum PopupState<'s> {
+pub enum PopupState {
     Add(popup::add::AddSequence),
     Closed,
     Edit,
-    ExitInfo(&'s str),
-    RmConfirm(&'s Vec<String>),
+    ExitInfo(&'static str),
+    RmConfirm(String),
 }
 
-impl<'s> PartialEq<PopupState<'s>> for PopupState<'s> {
+impl PartialEq<PopupState> for PopupState {
     fn eq(&self, other: &PopupState) -> bool {
         use PopupState::*;
         match self {
@@ -36,13 +36,13 @@ impl<'s> PartialEq<PopupState<'s>> for PopupState<'s> {
     }
 }
 
-impl<'s, 'o: 's> PartialEq<PopupState<'o>> for &'s PopupState<'s> {
-    fn eq(&self, other: &PopupState<'o>) -> bool {
+impl PartialEq<PopupState> for &PopupState {
+    fn eq(&self, other: &PopupState) -> bool {
         (*self).eq(other)
     }
 }
 
-impl PopupState<'_> {
+impl PopupState {
     pub fn is_open(&self) -> bool {
         self == PopupState::Closed
     }

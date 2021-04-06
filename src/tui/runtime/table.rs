@@ -8,12 +8,14 @@ use crate::{
     },
 };
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{
+        DisableMouseCapture, EnableMouseCapture, Event as CrossEvent, KeyCode, KeyEvent,
+        KeyModifiers,
+    },
     execute,
     terminal::*,
 };
-
-use popup::add::AddSequence;
+use parking_lot::Mutex;
 use tui::{backend::CrosstermBackend, Terminal};
 
 pub struct TableExitStatus {
@@ -23,8 +25,6 @@ pub struct TableExitStatus {
     pub rm_selection: Vec<String>,
     pub success: bool,
 }
-
-use parking_lot::Mutex;
 
 impl StatefulCmdsTable<'_> {
     fn go_handler(&self, exit_status: &mut TableExitStatus, selected_index: usize) {
@@ -41,7 +41,7 @@ impl StatefulCmdsTable<'_> {
         exit_status.success = true;
     }
 
-    pub fn render(&mut self, event_handler: StatefulEventHandler) -> Result<TableExitStatus> {
+    pub fn render(&mut self) -> Result<TableExitStatus> {
         // app state
         let exit_requested = &mut false;
         let mut exit_status = TableExitStatus {
@@ -51,8 +51,11 @@ impl StatefulCmdsTable<'_> {
             rm_selection: vec![],
             success: false,
         };
-        let exit_status_ref = &mut exit_status;
+        let exit_status_ref = RefCell::from(&mut exit_status);
+        let event_handler = StatefulEventHandler::new();
+        let ui_state = RefCell::from(Mutex::from(event_handler));
 
+        // setup for crossterm env
         enable_raw_mode()?;
         let mut stdout = std::io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -60,11 +63,8 @@ impl StatefulCmdsTable<'_> {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
-        let rx = spawn_event_loop();
-
-        let ui_state: RefCell<Mutex<StatefulEventHandler>> =
-            RefCell::from(Mutex::from(event_handler));
-
+        // spawn the event loop
+        let rx = Event::spawn_loop(Event::POLL_RATE);
         loop {
             terminal.draw(|frame| {
                 let layout = full_win_layout(frame);
@@ -78,103 +78,105 @@ impl StatefulCmdsTable<'_> {
             })?;
 
             let event = rx.recv()?;
-            if let Some((column, row)) = Event::clicked_coords(&event) {
+            if let Some((column, row)) = event.clicked_coords() {
                 terminal.set_cursor(column, row)?;
                 self.select(row as usize - 2);
             }
 
-            {
-                let mut request_popup_close = false;
-                let ui_guard = ui_state.borrow_mut();
-                let StatefulEventHandler {
-                    ref mut state,
-                    ref handler,
-                } = *ui_guard.lock();
+            let mut request_popup_close = false;
+            let ui_guard = ui_state.borrow_mut();
+            let StatefulEventHandler {
+                ref mut state,
+                ref handler,
+            } = *ui_guard.lock();
 
-                match state {
-                    PopupState::Add(ref mut seq) => {
-                        use crossterm::event::{
-                            Event as CrossEvent, KeyCode, KeyEvent, KeyModifiers,
-                        };
-                        match event {
-                            a if handler.accepts(&a) => seq.push(),
-                            r if handler.rejects(&r) => request_popup_close = true,
-                            CrossEvent::Key(KeyEvent {
-                                code,
-                                modifiers: KeyModifiers::NONE,
-                            }) => match code {
-                                KeyCode::Backspace => seq.delete(),
-                                KeyCode::Left => seq.pop(),
-                                KeyCode::Char(c) => seq.print(c),
-                                _ => {}
-                            },
+            match state {
+                PopupState::Add(ref mut seq) => {
+                    match event {
+                        a if handler.accepts(&a) => seq.push(),
+                        r if handler.rejects(&r) => request_popup_close = true,
+                        Event(CrossEvent::Key(KeyEvent {
+                            code,
+                            modifiers: KeyModifiers::NONE,
+                        })) => match code {
+                            KeyCode::Backspace => seq.delete(),
+                            KeyCode::Left => seq.pop(),
+                            KeyCode::Char(c) => seq.print(c),
                             _ => {}
-                        }
+                        },
+                        _ => {}
+                    }
 
-                        if seq.done() {
-                            seq.hydrate(&mut exit_status_ref.new_cmd);
-                            exit_status_ref.success = true;
-                            *state = PopupState::Closed;
+                    if seq.done() {
+                        let mut status = exit_status_ref.borrow_mut();
+                        seq.hydrate(&mut status.new_cmd);
+                        status.success = true;
+                        request_popup_close = true;
+                    }
+                }
+                PopupState::Edit => {}
+                PopupState::ExitInfo(_) => {
+                    std::thread::sleep(std::time::Duration::from_secs(7));
+                    break;
+                }
+                PopupState::RmConfirm(_) => match event {
+                    a if handler.accepts(&a) => {
+                        exit_status_ref.borrow_mut().success = true;
+                        *exit_requested = true;
+                    }
+                    r if handler.rejects(&r) => {
+                        exit_status_ref.borrow_mut().success = false;
+                        *state = PopupState::ExitInfo("Operation cancelled. Commands NOT removed.");
+                    }
+                    _ => {}
+                },
+                PopupState::Closed => match event {
+                    add if add == EventHandler::ADD => {
+                        *ui_guard.lock() = StatefulEventHandler::for_add_popup();
+                        exit_status_ref
+                            .borrow_mut()
+                            .last_requested_action
+                            .replace(EventHandler::ADD);
+                    }
+                    edit if edit == EventHandler::EDIT => {
+                        *ui_guard.lock() = StatefulEventHandler::for_edit_popup();
+                    }
+                    go if go == EventHandler::GO => {
+                        if let Some(selected_index) = self.state.selected() {
+                            self.go_handler(&mut exit_status_ref.borrow_mut(), selected_index);
+                            *exit_requested = true;
                         }
                     }
-                    PopupState::Edit => {}
-                    PopupState::ExitInfo(_) => {
-                        std::thread::sleep(std::time::Duration::from_secs(7));
-                        break;
+                    rm if rm == EventHandler::RM => {
+                        if let Some(selected_index) = self.state.selected() {
+                            self.rm_handler(&mut exit_status_ref.borrow_mut(), selected_index);
+                        }
                     }
-                    PopupState::RmConfirm(_) => match event {
-                        a if handler.accepts(&a) => {
-                            exit_status_ref.success = true;
-                            *exit_requested = true;
-                        }
-                        r if handler.rejects(&r) => {
-                            exit_status_ref.success = false;
-                            *state =
-                                PopupState::ExitInfo("Operation cancelled. Commands NOT removed.");
-                        }
-                        _ => {}
-                    },
-                    PopupState::Closed => match event {
-                        add if Event(add) == EventHandler::ADD => {
-                            *state = PopupState::Add(AddSequence::new());
-                            exit_status_ref
-                                .last_requested_action
-                                .replace(EventHandler::ADD);
-                        }
-                        edit if Event(edit) == EventHandler::EDIT => {
-                            *state = PopupState::Edit;
-                        }
-                        go if Event(go) == EventHandler::GO => {
-                            if let Some(selected_index) = self.state.selected() {
-                                self.go_handler(exit_status_ref, selected_index);
-                                *exit_requested = true;
-                            }
-                        }
-                        rm if Event(rm) == EventHandler::RM => {
-                            if let Some(selected_index) = self.state.selected() {
-                                self.rm_handler(exit_status_ref, selected_index);
-                            }
-                        }
-                        a if handler.accepts(&a) => {
-                            exit_status_ref.success = true;
-                            *exit_requested = true;
-                        }
-                        r if handler.rejects(&r) => {
-                            exit_status_ref.success = false;
-                            *exit_requested = true;
-                        }
-                        ev if Event::is_next_trigger(&ev) => self.next(),
-                        ev if Event::is_prev_trigger(&ev) => self.previous(),
-                        _ => {}
-                    },
-                }
+                    a if handler.accepts(&a) => {
+                        exit_status_ref.borrow_mut().success = true;
+                        *exit_requested = true;
+                    }
+                    r if handler.rejects(&r) => {
+                        exit_status_ref.borrow_mut().success = false;
+                        *exit_requested = true;
+                    }
+                    ev if ev.is_next_trigger() => self.next(),
+                    ev if ev.is_prev_trigger() => self.previous(),
+                    _ => {}
+                },
+            }
 
-                if request_popup_close {
-                    *state = PopupState::Closed;
-                }
+            if request_popup_close {
+                *ui_guard.lock() = StatefulEventHandler::new();
             }
 
             if *exit_requested {
+                if !exit_status_ref.borrow().rm_selection.is_empty() {
+                    let selection = exit_status_ref.borrow().rm_selection.join(", ");
+                    *ui_guard.lock() = StatefulEventHandler::for_rm_popup(selection);
+                    continue;
+                }
+
                 disable_raw_mode()?;
                 execute!(
                     terminal.backend_mut(),

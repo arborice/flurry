@@ -2,7 +2,7 @@ use crate::{
     apps::add::commit_cmd,
     config::{types::*, write::overwrite_cmds},
     prelude::*,
-    tui::{prelude::*, runtime::*, widgets::popup::add::AddCmdUi},
+    tui::{prelude::*, widgets::popup::add::AddCmdUi},
 };
 use rkyv::{
     core_impl::ArchivedOption, de::deserializers::AllocDeserializer, std_impl::ArchivedString,
@@ -20,8 +20,7 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
         let cmds_ref = RefCell::from(&cmds_list);
 
         let mut app = StatefulCmdsTable::with_items(&cmds_ref);
-        let event_handler = StatefulEventHandler::new();
-        let exit_status = app.render(event_handler)?;
+        let exit_status = app.render()?;
 
         if exit_status.success {
             match exit_status.last_requested_action {

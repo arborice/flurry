@@ -19,7 +19,7 @@ fn duplicate_checker<'a>(
 	for (key, cmd) in import_cmds.iter() {
 		if existing_cmds.contains_key(key) {
 			if let Some(replacement_key) = query_stdin(format!(
-				"Command `{}` exists, targeting `{}`.\nEnter a replacement command trigger or skip.",
+				"Command `{}` exists, targeting `{}`.\nEnter a replacement command trigger or skip import.",
 				key,
 				cmd.bin,
 				)) {
