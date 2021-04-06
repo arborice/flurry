@@ -1,12 +1,19 @@
 use crate::{
     prelude::*,
     tui::{
-        layouts::{full_win_layout, table_layout},
+        layout::{full_win_layout, table_layout},
         prelude::*,
+        runtime::StatefulEventHandler,
         widgets::*,
     },
 };
-use crossterm::{event::*, execute, terminal::*};
+use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
+    execute,
+    terminal::*,
+};
+
+use popup::add::AddSequence;
 use tui::{backend::CrosstermBackend, Terminal};
 
 #[derive(Default)]
@@ -139,7 +146,6 @@ pub struct TableExitStatus {
 }
 
 use parking_lot::Mutex;
-use std::cell::RefCell;
 
 impl StatefulCmdsTable<'_> {
     fn _edit_handler(&mut self, _exit_status: &mut TableExitStatus) {
@@ -148,31 +154,24 @@ impl StatefulCmdsTable<'_> {
 
     fn go_handler(&self, exit_status: &mut TableExitStatus, selected_index: usize) {
         let key = self.cmds.borrow()[selected_index].0.to_string();
-        exit_status
-            .last_requested_action
-            .replace(TuiInputHandler::GO);
+        exit_status.last_requested_action.replace(EventHandler::GO);
         exit_status.go_request.replace(key);
         exit_status.success = true;
     }
 
     fn rm_handler(&mut self, exit_status: &mut TableExitStatus, selected_index: usize) {
         let key = self.cmds.borrow()[selected_index].0.to_string();
-        exit_status
-            .last_requested_action
-            .replace(TuiInputHandler::RM);
+        exit_status.last_requested_action.replace(EventHandler::RM);
         exit_status.rm_selection.push(key);
         self.selected_indices.push(selected_index);
         exit_status.success = true;
     }
 
-    pub fn render(&mut self, opts: TuiOpts) -> Result<TableExitStatus> {
-        let TuiOpts {
-            ref selected_style,
-            ref input_handler,
-        } = opts;
-
+    pub fn render(&mut self, mut event_handler: StatefulEventHandler) -> Result<TableExitStatus> {
+        // app state
         let exit_requested = &mut false;
         let request_popup_close = &mut false;
+        let popup_state = &mut PopupState::Closed;
         let mut exit_status = TableExitStatus {
             new_cmd: None,
             go_request: None,
@@ -191,137 +190,132 @@ impl StatefulCmdsTable<'_> {
 
         let rx = spawn_event_loop();
 
-        let last_requested_popup: RefCell<Mutex<PopupWidget>> =
-            RefCell::from(Mutex::from(PopupWidget::default()));
+        let ui_state: RefCell<Mutex<StatefulEventHandler>> =
+            RefCell::from(Mutex::from(event_handler));
 
         loop {
             terminal.draw(|frame| {
                 let layout = full_win_layout(frame);
-                let _table = table_layout(self, frame, layout, *selected_style);
+                let _table = table_layout(self, frame, layout, Default::default());
 
                 {
-                    let popup_guard = last_requested_popup.borrow_mut();
-                    (*popup_guard.lock()).render(frame);
+                    let ui_guard = ui_state.borrow_mut();
+                    let popup_state = (*ui_guard.lock()).state;
+                    popup_state.render(frame);
                 }
             })?;
 
             let event = rx.recv()?;
-            if let Event::Mouse(MouseEvent {
-                kind: MouseEventKind::Down(MouseButton::Left),
-                column,
-                row,
-                ..
-            }) = event
-            {
+            if let Some((column, row)) = Event::get_coords(&event) {
                 terminal.set_cursor(column, row)?;
                 self.select(row as usize - 2);
             }
 
             {
-                let popup_guard = last_requested_popup.borrow_mut();
-                if let PopupWidget::Add(ref mut seq) = *popup_guard.lock() {
-                    match event {
-                        Event::Key(KeyEvent { code, modifiers }) => {
-                            if let KeyCode::Char(c) = code {
-                                if modifiers == KeyModifiers::CONTROL && c == 'c' {
-                                    *request_popup_close = true;
-                                } else {
-                                    seq.print(c);
-                                }
-                            }
+                let ui_guard = ui_state.borrow_mut();
+                let StatefulEventHandler {
+                    ref mut state,
+                    handler,
+                } = *ui_guard.lock();
 
-                            if let KeyCode::Enter = code {
+                match state {
+                    PopupState::Add(ref mut seq) => {
+                        use crossterm::event::{
+                            Event as CrossEvent, KeyCode, KeyEvent, KeyModifiers,
+                        };
+                        match event {
+                            a if handler.accepts(&a) => {
                                 seq.push();
                             }
-                            if let KeyCode::Backspace = code {
-                                seq.delete();
-                            }
-                            if let KeyCode::Left = code {
-                                seq.pop();
-                            }
-                            if let KeyCode::Esc = code {
+                            r if handler.rejects(&r) => {
                                 *request_popup_close = true;
                             }
+                            CrossEvent::Key(KeyEvent {
+                                code: KeyCode::Left,
+                                modifiers: KeyModifiers::NONE,
+                            }) => {
+                                seq.pop();
+                            }
+                            CrossEvent::Key(KeyEvent {
+                                code: KeyCode::Backspace,
+                                modifiers: KeyModifiers::NONE,
+                            }) => {
+                                seq.delete();
+                            }
+                            CrossEvent::Key(KeyEvent {
+                                code: KeyCode::Char('c'),
+                                modifiers: KeyModifiers::CONTROL,
+                            }) => {
+                                *request_popup_close = true;
+                            }
+                            CrossEvent::Key(KeyEvent {
+                                code: KeyCode::Char(c),
+                                modifiers: KeyModifiers::NONE,
+                            }) => {
+                                seq.print(c);
+                            }
+                            _ => {}
                         }
+
+                        if seq.done() {
+                            seq.populate(&mut exit_status_ref.new_cmd);
+                            exit_status_ref.success = true;
+                            *request_popup_close = true;
+                        }
+
+                        if !*request_popup_close {
+                            continue;
+                        }
+                    }
+                    PopupState::Edit => {}
+                    PopupState::RmConfirm => {}
+                    PopupState::Closed => match event {
+                        add if Event(add) == EventHandler::ADD => {
+                            *state = PopupState::Add(AddSequence::new());
+                            exit_status_ref
+                                .last_requested_action
+                                .replace(EventHandler::ADD);
+                        }
+                        edit if Event(edit) == EventHandler::EDIT => {
+                            *state = PopupState::Edit;
+                        }
+                        go if Event(go) == EventHandler::GO => {
+                            if let Some(selected_index) = self.state.selected() {
+                                self.go_handler(exit_status_ref, selected_index);
+                                *exit_requested = true;
+                            }
+                        }
+                        rm if Event(rm) == EventHandler::RM => {
+                            if let Some(selected_index) = self.state.selected() {
+                                *state = PopupState::RmConfirm;
+                                // *guard.lock() = PopupState::Confirm {
+                                // title: "Confirm Deletion",
+                                // message: "Remove {{ ctx }}",
+                                // context: Some(self.cmds.borrow()[selected_index].0.as_ref()),
+                                // };
+
+                                self.rm_handler(exit_status_ref, selected_index);
+                            }
+                        }
+                        a if handler.accepts(&a) => {
+                            exit_status_ref.success = true;
+                            *exit_requested = true;
+                        }
+                        r if handler.rejects(&r) => {
+                            exit_status_ref.success = false;
+                            *exit_requested = true;
+                        }
+                        ev if Event::is_next_trigger(&ev) => self.next(),
+                        ev if Event::is_prev_trigger(&ev) => self.previous(),
                         _ => {}
-                    }
-
-                    if seq.done() {
-                        seq.populate(&mut exit_status_ref.new_cmd);
-                        exit_status_ref.success = true;
-                        *request_popup_close = true;
-                    }
-
-                    if !*request_popup_close {
-                        continue;
-                    }
+                    },
                 }
 
                 if *request_popup_close {
-                    *popup_guard.lock() = PopupWidget::closed();
+                    *state = PopupState::Closed;
                     *request_popup_close = false;
                     continue;
                 }
-            }
-
-            match event {
-                add if input_handler.trigger_add(&add) => {
-                    let guard = last_requested_popup.borrow_mut();
-                    *guard.lock() = PopupWidget::Add(AddSequence::new());
-                    exit_status_ref
-                        .last_requested_action
-                        .replace(TuiInputHandler::ADD);
-                }
-                go if input_handler.trigger_go(&go) => {
-                    if let Some(selected_index) = self.state.selected() {
-                        self.go_handler(exit_status_ref, selected_index);
-                        *exit_requested = true;
-                    }
-                }
-                rm if input_handler.trigger_rm(&rm) => {
-                    if let Some(selected_index) = self.state.selected() {
-                        let guard = last_requested_popup.borrow_mut();
-                        *guard.lock() = PopupWidget::Confirm {
-                            title: "Confirm Deletion",
-                            message: "Remove {{ ctx }}",
-                            context: Some(self.cmds.borrow()[selected_index].0.as_ref()),
-                        };
-
-                        self.rm_handler(exit_status_ref, selected_index);
-                    }
-                }
-                a if input_handler.accepts(&a) => {
-                    let popup = last_requested_popup.borrow_mut();
-                    if (*popup.lock()).is_open() {
-                        *popup.lock() = PopupWidget::closed();
-                    }
-                }
-                r if input_handler.rejects(&r) => {
-                    exit_status_ref.success = false;
-                    let popup = last_requested_popup.borrow_mut();
-                    *popup.lock() = PopupWidget::closed();
-                }
-                u if input_handler.unselects(&u) => {
-                    if let Some(selected_index) = self.state.selected() {
-                        self.selected_indices.retain(|s| *s != selected_index);
-                    }
-                }
-                e if input_handler.is_exit_trigger(&e) => *exit_requested = true,
-                Event::Key(KeyEvent { code, modifiers }) => {
-                    if modifiers == KeyModifiers::NONE {
-                        match code {
-                            KeyCode::Down => self.next(),
-                            KeyCode::Up => self.previous(),
-                            _ => {}
-                        }
-                    }
-                }
-                Event::Mouse(MouseEvent { kind, .. }) => match kind {
-                    MouseEventKind::ScrollDown => self.next(),
-                    MouseEventKind::ScrollUp => self.previous(),
-                    _ => {}
-                },
-                _ => {}
             }
 
             if *exit_requested {

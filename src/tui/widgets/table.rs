@@ -1,4 +1,4 @@
-use crate::{prelude::*, tui::runtime::TuiOpts};
+use crate::prelude::*;
 
 use std::cell::RefCell;
 use tui::widgets::TableState;
@@ -9,7 +9,6 @@ type CmdsRef<'cmds> =
 
 pub struct StatefulCmdsTable<'cmds> {
     pub cmds: CmdsRef<'cmds>,
-    pub opts: TuiOpts,
     pub state: TableState,
     pub selected_indices: Vec<usize>,
     pub request_exit: bool,
@@ -19,10 +18,9 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
     pub fn with_items(cmds: CmdsRef<'cmds>) -> StatefulCmdsTable<'cmds> {
         let selected_indices = Vec::new();
         StatefulCmdsTable {
-            cmds: cmds,
+            cmds,
             selected_indices,
             state: TableState::default(),
-            opts: Default::default(),
             request_exit: false,
         }
     }
