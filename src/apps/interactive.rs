@@ -2,7 +2,7 @@ use crate::{
     apps::add::commit_cmd,
     config::{types::*, write::overwrite_cmds},
     prelude::*,
-    tui::{prelude::*, runtime::*},
+    tui::{prelude::*, runtime::*, widgets::popup::add::AddCmdUi},
 };
 use rkyv::{
     core_impl::ArchivedOption, de::deserializers::AllocDeserializer, std_impl::ArchivedString,
@@ -19,27 +19,20 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
             commands.iter().collect();
         let cmds_ref = RefCell::from(&cmds_list);
 
-        let tui_opts =
-            TuiOpts::default().with_selection_highlighter(Style::default().fg(Color::Blue));
-
         let mut app = StatefulCmdsTable::with_items(&cmds_ref);
-        let exit_status = app.render(tui_opts)?;
+        let event_handler = StatefulEventHandler::new();
+        let exit_status = app.render(event_handler)?;
 
         if exit_status.success {
             match exit_status.last_requested_action {
-                Some(TuiInputHandler::ADD) => {
+                Some(EventHandler::ADD) => {
                     if let Some(cmd) = exit_status.new_cmd {
                         let key = cmd.key.clone();
-                        match insert_new_cmd(cmd, gen_cmds) {
-                            Ok(_) => {
-                                println!("{} successfully added", key);
-                                return Ok(());
-                            }
-                            Err(e) => bail!(e),
-                        }
+                        insert_new_cmd(cmd, gen_cmds)?;
+                        println!("{} successfully added", key);
                     }
                 }
-                Some(TuiInputHandler::GO) => {
+                Some(EventHandler::GO) => {
                     if let Some(key) = exit_status.go_request {
                         if let Some(cmd) = gen_cmds.get(&key) {
                             match &cmd.dfl_args {
@@ -48,34 +41,28 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
                                 }
                                 ArchivedOption::None => run_cmd!(@ cmd.bin.as_ref() =>),
                             }?;
-                            return Ok(());
                         }
-                    }
-                }
-                Some(TuiInputHandler::RM) => {
-                    let rm_selection = exit_status.rm_selection;
-                    let mut gen_cmds = gen_cmds.deserialize(&mut AllocDeserializer)?;
-                    if let Some(ref mut cmds) = gen_cmds.commands {
-                        cmds.retain(|key, _| !rm_selection.iter().any(|k| k == key));
-                    }
-
-                    match overwrite_cmds(gen_cmds) {
-                        Ok(_) => {
-                            println!("Removed {}", rm_selection.join(", "));
-                            return Ok(());
-                        }
-                        Err(e) => bail!(e),
                     }
                 }
                 _ => {}
             }
-            println!("Goodbye!");
+
+            if !exit_status.rm_selection.is_empty() {
+                let selection = exit_status.rm_selection;
+                let mut gen_cmds = gen_cmds.deserialize(&mut AllocDeserializer)?;
+                if let Some(ref mut cmds) = gen_cmds.commands {
+                    cmds.retain(|key, _| !selection.iter().any(|k| k == key));
+                }
+
+                overwrite_cmds(gen_cmds)?;
+                println!("Removed {}", selection.join(", "));
+            }
         }
     }
     Ok(())
 }
 
-fn insert_new_cmd(args: table::AddCmdUi, gen_cmds: &ArchivedGeneratedCommands) -> Result<()> {
+fn insert_new_cmd(args: AddCmdUi, gen_cmds: &ArchivedGeneratedCommands) -> Result<()> {
     if gen_cmds.contains_key(&args.key) {
         return Err(anyhow!("A command by that key is in the database!"));
     }

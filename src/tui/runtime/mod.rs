@@ -5,12 +5,12 @@ pub mod table;
 use events::*;
 use tinyvec::array_vec;
 
-pub struct StatefulEventHandler {
-    pub state: state::PopupState,
+pub struct StatefulEventHandler<'s> {
+    pub state: state::PopupState<'s>,
     pub handler: events::EventHandler,
 }
 
-impl StatefulEventHandler {
+impl StatefulEventHandler<'_> {
     pub fn new() -> Self {
         Self {
             state: state::PopupState::Closed,

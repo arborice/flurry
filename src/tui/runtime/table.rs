@@ -16,131 +16,10 @@ use crossterm::{
 use popup::add::AddSequence;
 use tui::{backend::CrosstermBackend, Terminal};
 
-#[derive(Default)]
-pub struct ScanDirOpts {
-    pub depth: String,
-    pub ext_filters: String,
-    pub file_type_filter: String,
-    pub raw_filters: String,
-    pub regex_filters: String,
-}
-
-#[derive(Default)]
-pub struct AddCmdUi {
-    pub key: String,
-    pub bin: String,
-    pub joined_args: String,
-    pub joined_aliases: String,
-    pub encoder: String,
-    pub permissions: String,
-    pub query_which: String,
-    pub scan_dir: Option<ScanDirOpts>,
-}
-
-fn parse_with_delim(arg: String, delimiter: &str) -> Option<Vec<String>> {
-    let split: Vec<String> = arg
-        .split(delimiter)
-        .filter_map(|a| {
-            if a.is_empty() {
-                None
-            } else {
-                Some(a.to_owned())
-            }
-        })
-        .collect();
-
-    if split.is_empty() {
-        None
-    } else {
-        Some(split)
-    }
-}
-
-impl AddCmdUi {
-    pub fn to_cmd(self) -> Result<(String, GeneratedCommand)> {
-        use crate::cli::types::{
-            aliases_from_arg, args_from_arg, encoder_from_arg, exts_filter_from_arg,
-            file_type_filter_from_arg, permissions_from_arg, recursion_limit_from_arg,
-        };
-
-        let aliases = aliases_from_arg(&self.joined_aliases).ok();
-        let dfl_args = args_from_arg(&self.joined_args).ok();
-        let encoder = encoder_from_arg(&self.encoder).ok();
-        let permissions = permissions_from_arg(&self.permissions).or_else(|e| bail!(e))?;
-        let query_which = match self.query_which.as_str() {
-            "y" | "yes" | "true" => true,
-            "f" | "n" | "no" | "false" => false,
-            _ => return Err(anyhow!("not a valid input!")),
-        };
-
-        let (scan_dir, filter) = match self.scan_dir {
-            None => (ScanDirKind::None, FiltersKind::None),
-            Some(ScanDirOpts {
-                depth,
-                ext_filters,
-                file_type_filter,
-                raw_filters,
-                regex_filters,
-            }) => {
-                let scan_dir = recursion_limit_from_arg(&depth).or_else(|e| bail!(e))?;
-                let mut filters = vec![];
-
-                if let Ok(ext_filters) = exts_filter_from_arg(&ext_filters) {
-                    filters.push(ext_filters);
-                }
-                if let Ok(file_type_filter) = file_type_filter_from_arg(&file_type_filter) {
-                    filters.push(file_type_filter);
-                }
-                if let Some(ref mut regex_filters) =
-                    parse_with_delim(regex_filters, " ;;; ").map(|mut f| {
-                        f.drain(..)
-                            .map(|f| FilterKind::RegEx(f))
-                            .collect::<Vec<FilterKind>>()
-                    })
-                {
-                    filters.append(regex_filters);
-                }
-                if let Some(ref mut raw_filters) =
-                    parse_with_delim(raw_filters, " ;;; ").map(|mut f| {
-                        f.drain(..)
-                            .map(|f| FilterKind::Raw(f))
-                            .collect::<Vec<FilterKind>>()
-                    })
-                {
-                    filters.append(raw_filters);
-                }
-
-                match filters.len() {
-                    0 => (scan_dir, FiltersKind::None),
-                    1 => (
-                        scan_dir,
-                        FiltersKind::One(filters.drain(..).nth(0).unwrap()),
-                    ),
-                    _ => (scan_dir, FiltersKind::Many(filters)),
-                }
-            }
-        };
-
-        Ok((
-            self.key,
-            GeneratedCommand {
-                aliases,
-                bin: self.bin,
-                dfl_args,
-                encoder,
-                filter,
-                permissions,
-                query_which,
-                scan_dir,
-            },
-        ))
-    }
-}
-
 pub struct TableExitStatus {
     pub go_request: Option<String>,
     pub last_requested_action: Option<char>,
-    pub new_cmd: Option<AddCmdUi>,
+    pub new_cmd: Option<popup::add::AddCmdUi>,
     pub rm_selection: Vec<String>,
     pub success: bool,
 }
@@ -148,10 +27,6 @@ pub struct TableExitStatus {
 use parking_lot::Mutex;
 
 impl StatefulCmdsTable<'_> {
-    fn _edit_handler(&mut self, _exit_status: &mut TableExitStatus) {
-        todo!();
-    }
-
     fn go_handler(&self, exit_status: &mut TableExitStatus, selected_index: usize) {
         let key = self.cmds.borrow()[selected_index].0.to_string();
         exit_status.last_requested_action.replace(EventHandler::GO);
@@ -161,17 +36,14 @@ impl StatefulCmdsTable<'_> {
 
     fn rm_handler(&mut self, exit_status: &mut TableExitStatus, selected_index: usize) {
         let key = self.cmds.borrow()[selected_index].0.to_string();
-        exit_status.last_requested_action.replace(EventHandler::RM);
         exit_status.rm_selection.push(key);
         self.selected_indices.push(selected_index);
         exit_status.success = true;
     }
 
-    pub fn render(&mut self, mut event_handler: StatefulEventHandler) -> Result<TableExitStatus> {
+    pub fn render(&mut self, event_handler: StatefulEventHandler) -> Result<TableExitStatus> {
         // app state
         let exit_requested = &mut false;
-        let request_popup_close = &mut false;
-        let popup_state = &mut PopupState::Closed;
         let mut exit_status = TableExitStatus {
             new_cmd: None,
             go_request: None,
@@ -200,22 +72,23 @@ impl StatefulCmdsTable<'_> {
 
                 {
                     let ui_guard = ui_state.borrow_mut();
-                    let popup_state = (*ui_guard.lock()).state;
+                    let ref popup_state = (*ui_guard.lock()).state;
                     popup_state.render(frame);
                 }
             })?;
 
             let event = rx.recv()?;
-            if let Some((column, row)) = Event::get_coords(&event) {
+            if let Some((column, row)) = Event::clicked_coords(&event) {
                 terminal.set_cursor(column, row)?;
                 self.select(row as usize - 2);
             }
 
             {
+                let mut request_popup_close = false;
                 let ui_guard = ui_state.borrow_mut();
                 let StatefulEventHandler {
                     ref mut state,
-                    handler,
+                    ref handler,
                 } = *ui_guard.lock();
 
                 match state {
@@ -224,51 +97,43 @@ impl StatefulCmdsTable<'_> {
                             Event as CrossEvent, KeyCode, KeyEvent, KeyModifiers,
                         };
                         match event {
-                            a if handler.accepts(&a) => {
-                                seq.push();
-                            }
-                            r if handler.rejects(&r) => {
-                                *request_popup_close = true;
-                            }
+                            a if handler.accepts(&a) => seq.push(),
+                            r if handler.rejects(&r) => request_popup_close = true,
                             CrossEvent::Key(KeyEvent {
-                                code: KeyCode::Left,
+                                code,
                                 modifiers: KeyModifiers::NONE,
-                            }) => {
-                                seq.pop();
-                            }
-                            CrossEvent::Key(KeyEvent {
-                                code: KeyCode::Backspace,
-                                modifiers: KeyModifiers::NONE,
-                            }) => {
-                                seq.delete();
-                            }
-                            CrossEvent::Key(KeyEvent {
-                                code: KeyCode::Char('c'),
-                                modifiers: KeyModifiers::CONTROL,
-                            }) => {
-                                *request_popup_close = true;
-                            }
-                            CrossEvent::Key(KeyEvent {
-                                code: KeyCode::Char(c),
-                                modifiers: KeyModifiers::NONE,
-                            }) => {
-                                seq.print(c);
-                            }
+                            }) => match code {
+                                KeyCode::Backspace => seq.delete(),
+                                KeyCode::Left => seq.pop(),
+                                KeyCode::Char(c) => seq.print(c),
+                                _ => {}
+                            },
                             _ => {}
                         }
 
                         if seq.done() {
-                            seq.populate(&mut exit_status_ref.new_cmd);
+                            seq.hydrate(&mut exit_status_ref.new_cmd);
                             exit_status_ref.success = true;
-                            *request_popup_close = true;
-                        }
-
-                        if !*request_popup_close {
-                            continue;
+                            *state = PopupState::Closed;
                         }
                     }
                     PopupState::Edit => {}
-                    PopupState::RmConfirm => {}
+                    PopupState::ExitInfo(_) => {
+                        std::thread::sleep(std::time::Duration::from_secs(7));
+                        break;
+                    }
+                    PopupState::RmConfirm(_) => match event {
+                        a if handler.accepts(&a) => {
+                            exit_status_ref.success = true;
+                            *exit_requested = true;
+                        }
+                        r if handler.rejects(&r) => {
+                            exit_status_ref.success = false;
+                            *state =
+                                PopupState::ExitInfo("Operation cancelled. Commands NOT removed.");
+                        }
+                        _ => {}
+                    },
                     PopupState::Closed => match event {
                         add if Event(add) == EventHandler::ADD => {
                             *state = PopupState::Add(AddSequence::new());
@@ -287,13 +152,6 @@ impl StatefulCmdsTable<'_> {
                         }
                         rm if Event(rm) == EventHandler::RM => {
                             if let Some(selected_index) = self.state.selected() {
-                                *state = PopupState::RmConfirm;
-                                // *guard.lock() = PopupState::Confirm {
-                                // title: "Confirm Deletion",
-                                // message: "Remove {{ ctx }}",
-                                // context: Some(self.cmds.borrow()[selected_index].0.as_ref()),
-                                // };
-
                                 self.rm_handler(exit_status_ref, selected_index);
                             }
                         }
@@ -311,10 +169,8 @@ impl StatefulCmdsTable<'_> {
                     },
                 }
 
-                if *request_popup_close {
+                if request_popup_close {
                     *state = PopupState::Closed;
-                    *request_popup_close = false;
-                    continue;
                 }
             }
 

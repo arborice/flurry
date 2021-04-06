@@ -74,7 +74,7 @@ impl Event {
         }
     }
 
-    pub fn get_coords(event: &CrossEvent) -> Option<(u16, u16)> {
+    pub fn clicked_coords(event: &CrossEvent) -> Option<(u16, u16)> {
         if let CrossEvent::Mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column,

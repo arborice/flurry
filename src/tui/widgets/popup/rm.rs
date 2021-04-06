@@ -1,12 +1,11 @@
 use crate::tui::widgets::*;
 
-pub fn centered_label<'c>(message: &'c str, context: &'c Option<&'c str>) -> Paragraph<'c> {
-    let msg_span = match context {
-        Some(ctx) => Span::raw(message.replace("{{ ctx }}", ctx)),
-        None => Span::raw(message),
-    };
+pub fn rm_popup_label(selection: &Vec<String>) -> Paragraph {
+    let rm_selection = selection.join(", ");
+    let msg_span = Span::raw(format!("Delete {}?", rm_selection));
     let confirm_span = Span::raw("(y)es or (n)o?");
+
     Paragraph::new(Spans::from(vec![msg_span, confirm_span]))
-        .alignment(Alignment::Center)
+        .alignment(Alignment::Left)
         .wrap(Wrap { trim: true })
 }
