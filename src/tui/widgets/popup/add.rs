@@ -1,5 +1,6 @@
 use crate::tui::{layout::*, widgets::*};
 
+#[derive(Debug)]
 pub struct AddSequence {
     pub buf: String,
     stages: [(&'static str, String); 7],
@@ -31,8 +32,8 @@ impl AddSequence {
         self.index == self.stages.len()
     }
 
-    pub fn hydrate(&mut self, add_cmd: &mut Option<AddCmdUi>) {
-        add_cmd.replace(AddCmdUi {
+    pub fn generate(&mut self) -> Result<(String, GeneratedCommand)> {
+        AddCmdUi {
             key: self.stages[0].1.drain(..).collect(),
             bin: self.stages[1].1.drain(..).collect(),
             joined_args: self.stages[2].1.drain(..).collect(),
@@ -41,7 +42,8 @@ impl AddSequence {
             permissions: self.stages[5].1.drain(..).collect(),
             query_which: self.stages[6].1.drain(..).collect(),
             scan_dir: None,
-        });
+        }
+        .to_cmd()
     }
 
     pub fn push(&mut self) {

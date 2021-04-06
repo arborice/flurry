@@ -1,11 +1,6 @@
 use crate::{
     prelude::*,
-    tui::{
-        layout::{full_win_layout, table_layout},
-        prelude::*,
-        runtime::StatefulEventHandler,
-        widgets::*,
-    },
+    tui::{layout::full_win_layout, prelude::*, runtime::StatefulEventHandler, widgets::*},
 };
 use crossterm::{
     event::{
@@ -15,30 +10,55 @@ use crossterm::{
     execute,
     terminal::*,
 };
-use parking_lot::Mutex;
 use tui::{backend::CrosstermBackend, Terminal};
 
 pub struct TableExitStatus {
     pub go_request: Option<String>,
-    pub last_requested_action: Option<char>,
     pub new_cmd: Option<popup::add::AddCmdUi>,
     pub rm_selection: Vec<String>,
     pub success: bool,
 }
 
 impl StatefulCmdsTable<'_> {
+    const DFL_STATE: u8 = 0;
+    const ADD_STATE: u8 = 1;
+    const EDIT_STATE: u8 = 2;
+    const RM_STATE: u8 = 3;
+    const EXIT_STATE: u8 = 4;
+
     fn go_handler(&self, exit_status: &mut TableExitStatus, selected_index: usize) {
-        let key = self.cmds.borrow()[selected_index].0.to_string();
-        exit_status.last_requested_action.replace(EventHandler::GO);
+        let key = self
+            .cmds
+            .borrow()
+            .keys()
+            .nth(selected_index)
+            .unwrap()
+            .to_string();
         exit_status.go_request.replace(key);
         exit_status.success = true;
     }
 
     fn rm_handler(&mut self, exit_status: &mut TableExitStatus, selected_index: usize) {
-        let key = self.cmds.borrow()[selected_index].0.to_string();
+        let key = self
+            .cmds
+            .borrow()
+            .keys()
+            .nth(selected_index)
+            .unwrap()
+            .to_string();
         exit_status.rm_selection.push(key);
         self.selected_indices.push(selected_index);
         exit_status.success = true;
+    }
+
+    fn state_handler(t: u8) -> StatefulEventHandler {
+        match t {
+            Self::DFL_STATE | Self::EXIT_STATE => StatefulEventHandler::new(),
+            Self::ADD_STATE => StatefulEventHandler::for_add_popup(),
+            Self::EDIT_STATE => StatefulEventHandler::for_edit_popup(),
+            Self::RM_STATE => StatefulEventHandler::for_rm_popup(Default::default()),
+            _ => panic!("Not a valid tui state"),
+        }
     }
 
     pub fn render(&mut self) -> Result<TableExitStatus> {
@@ -47,13 +67,11 @@ impl StatefulCmdsTable<'_> {
         let mut exit_status = TableExitStatus {
             new_cmd: None,
             go_request: None,
-            last_requested_action: None,
             rm_selection: vec![],
             success: false,
         };
         let exit_status_ref = RefCell::from(&mut exit_status);
-        let event_handler = StatefulEventHandler::new();
-        let ui_state = RefCell::from(Mutex::from(event_handler));
+        let ui_state = &mut 0_u8;
 
         // setup for crossterm env
         enable_raw_mode()?;
@@ -66,15 +84,15 @@ impl StatefulCmdsTable<'_> {
         // spawn the event loop
         let rx = Event::spawn_loop(Event::POLL_RATE);
         loop {
+            let StatefulEventHandler {
+                ref mut state,
+                ref handler,
+            } = Self::state_handler(*ui_state);
+
             terminal.draw(|frame| {
                 let layout = full_win_layout(frame);
-                let _table = table_layout(self, frame, layout, Default::default());
-
-                {
-                    let ui_guard = ui_state.borrow_mut();
-                    let ref popup_state = (*ui_guard.lock()).state;
-                    popup_state.render(frame);
-                }
+                self.show_layout(frame, layout);
+                state.render(frame);
             })?;
 
             let event = rx.recv()?;
@@ -84,14 +102,10 @@ impl StatefulCmdsTable<'_> {
             }
 
             let mut request_popup_close = false;
-            let ui_guard = ui_state.borrow_mut();
-            let StatefulEventHandler {
-                ref mut state,
-                ref handler,
-            } = *ui_guard.lock();
 
             match state {
                 PopupState::Add(ref mut seq) => {
+                    // bindings while add popup is open
                     match event {
                         a if handler.accepts(&a) => seq.push(),
                         r if handler.rejects(&r) => request_popup_close = true,
@@ -99,7 +113,7 @@ impl StatefulCmdsTable<'_> {
                             code,
                             modifiers: KeyModifiers::NONE,
                         })) => match code {
-                            KeyCode::Backspace => seq.delete(),
+                            KeyCode::Backspace | KeyCode::Delete => seq.delete(),
                             KeyCode::Left => seq.pop(),
                             KeyCode::Char(c) => seq.print(c),
                             _ => {}
@@ -108,15 +122,22 @@ impl StatefulCmdsTable<'_> {
                     }
 
                     if seq.done() {
-                        let mut status = exit_status_ref.borrow_mut();
-                        seq.hydrate(&mut status.new_cmd);
-                        status.success = true;
+                        let (key, cmd) = seq.generate()?;
+                        (*(*self.cmds.borrow_mut())).insert(key, cmd);
                         request_popup_close = true;
                     }
                 }
                 PopupState::Edit => {}
                 PopupState::ExitInfo(_) => {
                     std::thread::sleep(std::time::Duration::from_secs(7));
+
+                    disable_raw_mode()?;
+                    execute!(
+                        terminal.backend_mut(),
+                        LeaveAlternateScreen,
+                        DisableMouseCapture
+                    )?;
+                    terminal.show_cursor()?;
                     break;
                 }
                 PopupState::RmConfirm(_) => match event {
@@ -131,17 +152,9 @@ impl StatefulCmdsTable<'_> {
                     _ => {}
                 },
                 PopupState::Closed => match event {
-                    add if add == EventHandler::ADD => {
-                        *ui_guard.lock() = StatefulEventHandler::for_add_popup();
-                        exit_status_ref
-                            .borrow_mut()
-                            .last_requested_action
-                            .replace(EventHandler::ADD);
-                    }
-                    edit if edit == EventHandler::EDIT => {
-                        *ui_guard.lock() = StatefulEventHandler::for_edit_popup();
-                    }
-                    go if go == EventHandler::GO => {
+                    add if add == EventHandler::ADD => *ui_state = Self::ADD_STATE,
+                    edit if edit == EventHandler::EDIT => *ui_state = Self::EDIT_STATE,
+                    go if go == EventHandler::GO || go == '\n' => {
                         if let Some(selected_index) = self.state.selected() {
                             self.go_handler(&mut exit_status_ref.borrow_mut(), selected_index);
                             *exit_requested = true;
@@ -167,13 +180,12 @@ impl StatefulCmdsTable<'_> {
             }
 
             if request_popup_close {
-                *ui_guard.lock() = StatefulEventHandler::new();
+                *ui_state = Self::DFL_STATE;
             }
 
             if *exit_requested {
                 if !exit_status_ref.borrow().rm_selection.is_empty() {
-                    let selection = exit_status_ref.borrow().rm_selection.join(", ");
-                    *ui_guard.lock() = StatefulEventHandler::for_rm_popup(selection);
+                    *ui_state = Self::RM_STATE;
                     continue;
                 }
 

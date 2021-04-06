@@ -1,5 +1,6 @@
 use crate::tui::{layout::*, widgets::*};
 
+#[derive(Debug)]
 pub enum PopupState {
     Add(popup::add::AddSequence),
     Closed,

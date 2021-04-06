@@ -138,6 +138,7 @@ impl Default for Event {
 pub type Ec = [Event; 3];
 pub type EventArray = ArrayVec<Ec>;
 
+#[derive(Debug)]
 pub struct EventHandler {
     pub accept: EventArray,
     pub reject: EventArray,
@@ -160,21 +161,8 @@ impl EventHandler {
 
 impl PartialEq<Event> for char {
     fn eq(&self, event: &Event) -> bool {
-        match *self {
-            EventHandler::ADD => {
-                let ev: Event = EventHandler::ADD.into();
-                &ev == event
-            }
-            EventHandler::GO => {
-                let ev: Event = EventHandler::GO.into();
-                &ev == event
-            }
-            EventHandler::RM => {
-                let ev: Event = EventHandler::RM.into();
-                &ev == event
-            }
-            _ => false,
-        }
+        let ev: Event = (*self).into();
+        &ev == event
     }
 }
 

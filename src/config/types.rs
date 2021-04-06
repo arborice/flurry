@@ -7,6 +7,35 @@ pub struct GeneratedCommands {
     pub aliases: Option<HashMap<String, String>>,
 }
 
+impl GeneratedCommands {
+    pub fn contains_key<S: AsRef<str>>(&self, key: S) -> bool {
+        let key = key.as_ref();
+        if let Some(ref commands) = self.commands {
+            if commands.contains_key(key) {
+                return true;
+            }
+        }
+        if let Some(ref aliases) = self.aliases {
+            return aliases.contains_key(key);
+        }
+        false
+    }
+
+    pub fn get<S: AsRef<str>>(&self, key: S) -> Option<&GeneratedCommand> {
+        if let Some(ref commands) = self.commands {
+            let key = key.as_ref();
+            return commands.get(key).or_else(|| {
+                if let Some(ref aliases) = self.aliases {
+                    aliases.get(key).and_then(|key| commands.get(key))
+                } else {
+                    None
+                }
+            });
+        }
+        None
+    }
+}
+
 impl ArchivedGeneratedCommands {
     pub fn contains_key<S: AsRef<str>>(&self, key: S) -> bool {
         let key = key.as_ref();
@@ -55,13 +84,13 @@ pub enum PermissionsKind {
     User,
 }
 
-impl AsRef<str> for ArchivedPermissionsKind {
+impl AsRef<str> for PermissionsKind {
     fn as_ref(&self) -> &str {
         match self {
-            ArchivedPermissionsKind::Any => "any",
-            ArchivedPermissionsKind::Group => "group",
-            ArchivedPermissionsKind::Root => "root",
-            ArchivedPermissionsKind::User => "user",
+            PermissionsKind::Any => "any",
+            PermissionsKind::Group => "group",
+            PermissionsKind::Root => "root",
+            PermissionsKind::User => "user",
         }
     }
 }
