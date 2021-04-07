@@ -19,9 +19,10 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
 
         let mut app = StatefulCmdsTable::with_items(&cmds_ref)
             .with_header_style(Style::default().fg(Color::Blue))
-            .with_rm_style(Style::default().fg(Color::Red));
+            .with_rm_style(Style::default().fg(Color::Red))
+            .with_selection_style(Style::default().fg(Color::Cyan));
 
-        let status = app.render()?;
+        let status = app.render(None)?;
         if status.success {
             if !status.rm_selection.is_empty() {
                 let ref selection = status.rm_selection;
@@ -49,4 +50,57 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
         println!("{}", success_msg);
     }
     Ok(())
+}
+
+#[test]
+fn poll_state() {
+    use std::{
+        fs::OpenOptions,
+        io::Write,
+        sync::mpsc::{channel, Receiver, Sender},
+        thread,
+    };
+
+    let test_output_path = "test_output";
+    let write_to_test_output = move |val: &str| {
+        OpenOptions::new()
+            .append(true)
+            .open(test_output_path)
+            .seppuku(None)
+            .write(val.as_bytes())
+            .seppuku(None);
+    };
+
+    let (tx, rx): (Sender<usize>, Receiver<usize>) = channel();
+    thread::spawn(move || loop {
+        if let Ok(state) = rx.recv() {
+            let state = match state {
+                StatefulCmdsTable::DFL_STATE => "DFL_STATE\n",
+                StatefulCmdsTable::ADD_STATE => "ADD_STATE\n",
+                StatefulCmdsTable::EDIT_STATE => "EDIT_STATE\n",
+                StatefulCmdsTable::RM_STATE => "RM_STATE\n",
+                StatefulCmdsTable::EXIT_STATE => "EXIT_STATE\n",
+                _ => "UNDEFINED\n",
+            };
+
+            write_to_test_output(state);
+        }
+    });
+
+    let cmds_db = crate::config::get::CmdsDb::from_cfg().unwrap();
+    let mut cmds_deser = cmds_db
+        .archive()
+        .deserialize(&mut AllocDeserializer)
+        .unwrap();
+
+    if let Some(ref mut cmds) = cmds_deser.commands {
+        let cmds_ref = RefCell::from(cmds);
+        let mut app = StatefulCmdsTable::with_items(&cmds_ref)
+            .with_header_style(Style::default().fg(Color::Blue))
+            .with_rm_style(Style::default().fg(Color::Red))
+            .with_selection_style(Style::default().fg(Color::Cyan));
+        let exit_status = app.render(Some(&tx)).unwrap();
+
+        println!("{:#?}", exit_status);
+    }
 }

@@ -5,12 +5,13 @@
 
 <br/>
 
-#### add a `set` command to alter command properties
+#### setup `edit` stateful stack for tui to alter command properties
 
 <br/>
 
-#### tui needs `add` and `edit` functionality
+#### <del/> catch up main branch with tui interface + app changes
+#### merge into main, create alternate branch using TOML serde or other zero-copy deserializer
 
 <br/>
 
-#### catch up main branch with tui interface + app changes
+#### allow exporting/importing in TOML format

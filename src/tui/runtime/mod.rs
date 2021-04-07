@@ -5,6 +5,22 @@ pub mod table;
 use events::*;
 use tinyvec::array_vec;
 
+pub fn event_handlers() -> [StatefulEventHandler; 5] {
+    [
+        StatefulEventHandler::new(),
+        StatefulEventHandler::for_add_popup(),
+        StatefulEventHandler::for_edit_popup(),
+        StatefulEventHandler::for_rm_popup(),
+        StatefulEventHandler {
+            state: state::PopupState::ExitError,
+            handler: EventHandler {
+                accept: array_vec!(Ec =>),
+                reject: array_vec!(Ec =>),
+            },
+        },
+    ]
+}
+
 #[derive(Debug)]
 pub struct StatefulEventHandler {
     pub state: state::PopupState,
@@ -42,12 +58,12 @@ impl StatefulEventHandler {
         }
     }
 
-    pub fn for_rm_popup(selection: String) -> Self {
+    pub fn for_rm_popup() -> Self {
         Self {
-            state: state::PopupState::RmConfirm(selection),
+            state: state::PopupState::RmConfirm,
             handler: EventHandler {
                 accept: array_vec!(Ec => 'y'.into()),
-                reject: array_vec!(Ec => 'n'.into(), Event::from_str("ctrl+c").unwrap()),
+                reject: array_vec!(Ec => 'n'.into(), Event::from_str("ctrl+c").unwrap(), Event::from_str("esc").unwrap()),
             },
         }
     }

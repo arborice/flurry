@@ -5,3 +5,5 @@
 0.1.3-beta0.3
 - added list command
 - massive ergonomics improvements for tui state + input management
+- added unit tests
+- 

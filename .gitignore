@@ -1,4 +1,4 @@
 /target
-speedy
-tiny
-/bins
+test_output
+*js
+*sh

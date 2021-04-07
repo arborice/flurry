@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use std::cell::RefCell;
+use std::{array, cell::RefCell};
 use tui::widgets::TableState;
 
 type CmdsRef<'cmds> = &'cmds RefCell<&'cmds mut HashMap<String, GeneratedCommand>>;
@@ -10,7 +10,9 @@ pub struct StatefulCmdsTable<'cmds> {
     pub state: TableState,
     pub request_exit: bool,
     pub selected_indices: Vec<usize>,
+    pub key_cache: HashMap<usize, String>,
     header_style: Style,
+    selection_style: Style,
     rm_selection_style: Style,
 }
 
@@ -24,13 +26,20 @@ use tui::{
 
 impl<'cmds> StatefulCmdsTable<'cmds> {
     pub fn with_items(cmds: CmdsRef<'cmds>) -> StatefulCmdsTable<'cmds> {
-        let selected_indices = Vec::new();
+        let borrowed_cmds = cmds.borrow();
+        let key_cache = borrowed_cmds.keys().enumerate().fold(
+            HashMap::with_capacity(borrowed_cmds.len()),
+            |mut map, (i, key)| (map.insert(i, key.clone()), map).1,
+        );
+
         StatefulCmdsTable {
             cmds,
-            selected_indices,
-            state: TableState::default(),
+            key_cache,
+            selected_indices: Vec::new(),
             request_exit: false,
+            state: TableState::default(),
             header_style: Style::default(),
+            selection_style: Style::default(),
             rm_selection_style: Style::default(),
         }
     }
@@ -43,6 +52,19 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
     pub fn with_rm_style(mut self, style: Style) -> Self {
         self.rm_selection_style = style;
         self
+    }
+
+    pub fn with_selection_style(mut self, style: Style) -> Self {
+        self.selection_style = style;
+        self
+    }
+
+    pub fn update_cache(&mut self) {
+        let borrowed_cmds = self.cmds.borrow();
+        self.key_cache = borrowed_cmds.keys().enumerate().fold(
+            HashMap::with_capacity(borrowed_cmds.len()),
+            |mut map, (i, key)| (map.insert(i, key.clone()), map).1,
+        );
     }
 
     pub fn next(&mut self) {
@@ -78,25 +100,38 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
     }
 
     pub fn show_layout<B: Backend>(&mut self, frame: &mut Frame<B>, layout: Vec<Rect>) {
-        let header_cells = ["Key", "Cmd", "Aliases", "Permissions"]
-            .iter()
-            .map(|h| Cell::from(*h).style(self.header_style));
+        let header_cells = array::IntoIter::new(["Key", "Cmd", "Aliases", "Permissions"])
+            .map(|h| Cell::from(h).style(self.header_style));
         let header = Row::new(header_cells).height(1).bottom_margin(1);
-        frame.render_stateful_widget(
-            Table::new(self.cmds.borrow().iter().map(|(key, cmd)| {
-                let aliases = match &cmd.aliases {
-                    Some(aliases) => aliases.join(", "),
-                    None => String::new(),
-                };
 
-                Row::new(std::array::IntoIter::new([
-                    Cell::from(key.as_str()),
-                    Cell::from(cmd.bin.as_str()),
-                    Cell::from(aliases),
-                    Cell::from(cmd.permissions.as_ref()),
-                ]))
-                .height(1)
-            }))
+        frame.render_stateful_widget(
+            Table::new(
+                self.cmds
+                    .borrow()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (key, cmd))| {
+                        let style = if self.selected_indices.contains(&i) {
+                            self.rm_selection_style
+                        } else {
+                            Default::default()
+                        };
+
+                        Row::new(array::IntoIter::new([
+                            Cell::from(key.as_str()),
+                            Cell::from(cmd.bin.as_str()),
+                            Cell::from(
+                                cmd.aliases
+                                    .as_ref()
+                                    .and_then(|a| Some(a.join(", ")))
+                                    .unwrap_or_default(),
+                            ),
+                            Cell::from(cmd.permissions.as_ref()),
+                        ]))
+                        .style(style)
+                        .height(1)
+                    }),
+            )
             .highlight_style(self.rm_selection_style)
             .header(header)
             .block(
@@ -105,9 +140,9 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
                     .title("Your Flurry Generated Commands"),
             )
             .widths(&[
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-                Constraint::Percentage(45),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
+                Constraint::Percentage(55),
                 Constraint::Percentage(15),
             ]),
             layout[0],

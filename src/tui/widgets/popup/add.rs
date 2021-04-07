@@ -82,7 +82,7 @@ pub fn centered_input_block<B: Backend>(frame: &mut Frame<B>, content: &str) {
     frame.render_widget(display, disp_rect);
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ScanDirOpts {
     pub depth: String,
     pub ext_filters: String,
@@ -91,7 +91,7 @@ pub struct ScanDirOpts {
     pub regex_filters: String,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct AddCmdUi {
     pub key: String,
     pub bin: String,

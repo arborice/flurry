@@ -5,8 +5,23 @@ pub enum PopupState {
     Add(popup::add::AddSequence),
     Closed,
     Edit,
-    ExitInfo(&'static str),
-    RmConfirm(String),
+    ExitError,
+    Info,
+    RmConfirm,
+}
+
+impl AsRef<str> for PopupState {
+    fn as_ref(&self) -> &str {
+        use PopupState::*;
+        match self {
+            Add(_) => "Add",
+            Closed => "Closed",
+            Edit => "Edit",
+            ExitError => "ExitError",
+            Info => "Info",
+            RmConfirm => "Confirm Removal",
+        }
+    }
 }
 
 impl PartialEq<PopupState> for PopupState {
@@ -21,12 +36,16 @@ impl PartialEq<PopupState> for PopupState {
                 Edit => true,
                 _ => false,
             },
-            ExitInfo(_) => match other {
-                ExitInfo(_) => true,
+            ExitError => match other {
+                ExitError => true,
                 _ => false,
             },
-            RmConfirm(_) => match other {
-                RmConfirm(_) => true,
+            Info => match other {
+                Info => true,
+                _ => false,
+            },
+            RmConfirm => match other {
+                RmConfirm => true,
                 _ => false,
             },
             Closed => match other {
@@ -48,7 +67,7 @@ impl PopupState {
         self == PopupState::Closed
     }
 
-    pub fn render<B: Backend>(&self, frame: &mut Frame<B>) {
+    pub fn render<B: Backend>(&self, frame: &mut Frame<B>, context: &Option<String>) {
         match self {
             PopupState::Add(seq) => {
                 let query = seq.current_frame();
@@ -61,19 +80,30 @@ impl PopupState {
 
                 popup::add::centered_input_block(frame, seq.buf.as_str());
             }
-            PopupState::RmConfirm(selection) => {
+            PopupState::RmConfirm => {
                 let frame_size = frame.size();
                 let popup_rect = centered_rect(60, 4, frame_size);
-                let popup_block = Block::default()
-                    .title("Confirm Removal")
-                    .borders(Borders::ALL);
+                let popup_block = Block::default().title(self.as_ref()).borders(Borders::ALL);
 
                 frame.render_widget(Clear, popup_rect);
                 frame.render_widget(popup_block, popup_rect);
 
-                let popup_label = popup::rm::rm_popup_label(selection);
+                let popup_label = popup::rm::rm_popup_label(context.as_ref().unwrap());
                 let label_rect =
                     centered_rect_with_margin(60, 4, frame_size, (Direction::Vertical, 1));
+                frame.render_widget(popup_label, label_rect);
+            }
+            PopupState::Info | PopupState::ExitError => {
+                let frame_size = frame.size();
+                let popup_rect = centered_rect(60, 5, frame_size);
+                let popup_block = Block::default().title(self.as_ref()).borders(Borders::ALL);
+
+                frame.render_widget(Clear, popup_rect);
+                frame.render_widget(popup_block, popup_rect);
+
+                let popup_label = popup::info::info_label(context.as_ref().unwrap());
+                let label_rect =
+                    centered_rect_with_margin(60, 5, frame_size, (Direction::Vertical, 1));
                 frame.render_widget(popup_label, label_rect);
             }
             _ => {}
