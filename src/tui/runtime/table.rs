@@ -32,22 +32,21 @@ impl StatefulCmdsTable<'_> {
     pub const RM_STATE: usize = 3;
     pub const EXIT_STATE: usize = 4;
 
-    fn go_handler(&self, exit_status: &mut TableExitStatus, selected_index: usize) {
-        let key = self
-            .key_cache
-            .get(&selected_index)
+    fn cmd_key_for_index(&self, index: &usize) -> String {
+        self.key_cache
+            .get(index)
             .seppuku("UNEXPECTED OUT OF BOUNDS CACHE ACCESS")
-            .to_string();
+            .to_string()
+    }
+
+    fn go_handler(&self, exit_status: &mut TableExitStatus, selected_index: usize) {
+        let key = self.cmd_key_for_index(&selected_index);
         exit_status.go_request.replace(key);
         exit_status.success = true;
     }
 
     fn rm_handler(&mut self, exit_status: &mut TableExitStatus, selected_index: usize) {
-        let key = self
-            .key_cache
-            .get(&selected_index)
-            .seppuku("UNEXPECTED OUT OF BOUNDS CACHE ACCESS")
-            .to_string();
+        let key = self.cmd_key_for_index(&selected_index);
         exit_status.rm_selection.push(key);
         self.selected_indices.push(selected_index);
         exit_status.success = true;
@@ -147,7 +146,38 @@ impl StatefulCmdsTable<'_> {
                         continue;
                     }
                 }
-                PopupState::Edit(_) => {}
+                PopupState::Edit(ref mut seq) => {
+                    use crate::tui::widgets::popup::edit::EditSeq;
+
+                    match event {
+                        a if handler.accepts(&a) => seq.try_push()?,
+                        r if handler.rejects(&r) => *request_popup_close = true,
+                        Event(CrossEvent::Key(KeyEvent {
+                            code,
+                            modifiers: KeyModifiers::NONE,
+                        })) => match code {
+                            KeyCode::Backspace | KeyCode::Delete => seq.delete(),
+                            KeyCode::Left => seq.pop(),
+                            KeyCode::Char(c) => seq.print(c),
+                            _ => {}
+                        },
+                        Event(CrossEvent::Key(KeyEvent {
+                            code: KeyCode::Char(c),
+                            modifiers: KeyModifiers::SHIFT,
+                        })) => seq.print(c.to_ascii_uppercase()),
+                        _ => {}
+                    }
+
+                    let SeqFrame { ref query, .. } = seq.current_frame();
+                    let cmd_key = self.cmd_key_for_index(&self.state.selected().unwrap());
+                    if let Some(ref mut curr_cmd) = (*(*self.cmds.borrow_mut())).get_mut(&cmd_key) {
+                        EditSeq::set_new_val(&query, &mut seq.buf, curr_cmd)?;
+                    }
+                    if seq.done() {
+                        self.update_cache();
+                        continue;
+                    }
+                }
                 PopupState::ExitError | PopupState::Info => unreachable!(),
                 PopupState::RmConfirm => match event {
                     a if handler.accepts(&a) => {

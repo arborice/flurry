@@ -1,6 +1,10 @@
 use crate::tui::{layout::*, widgets::*};
 
-pub fn add_seq_items() -> [SeqFrame; 7] {
+pub const fn add_seq_num_items() -> usize {
+    7
+}
+
+pub fn add_seq_items() -> [SeqFrame; add_seq_num_items()] {
     [
         SeqFrame::new(
             "Key (trigger) for new command?",
@@ -68,33 +72,11 @@ pub struct AddCmdUi {
     pub scan_dir: Option<ScanDirOpts>,
 }
 
-fn parse_with_delim(arg: String, delimiter: &str) -> Option<Vec<String>> {
-    let split: Vec<String> = arg
-        .split(delimiter)
-        .filter_map(|a| {
-            if a.is_empty() {
-                None
-            } else {
-                Some(a.to_owned())
-            }
-        })
-        .collect();
-
-    if split.is_empty() {
-        None
-    } else {
-        Some(split)
-    }
-}
-
 use crate::prelude::*;
 
 impl AddCmdUi {
     pub fn to_cmd(self) -> Result<(String, GeneratedCommand)> {
-        use crate::cli::types::{
-            aliases_from_arg, args_from_arg, encoder_from_arg, exts_filter_from_arg,
-            file_type_filter_from_arg, permissions_from_arg, recursion_limit_from_arg,
-        };
+        use crate::utils::parse::*;
 
         let aliases = aliases_from_arg(&self.joined_aliases).ok();
         let dfl_args = args_from_arg(&self.joined_args).ok();

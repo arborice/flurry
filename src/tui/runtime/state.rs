@@ -2,9 +2,9 @@ use crate::tui::{layout::*, widgets::*};
 
 #[derive(Debug)]
 pub enum PopupState {
-    Add(UiStackSequence<7>),
+    Add(UiStackSequence<{ popup::add::add_seq_num_items() }>),
     Closed,
-    Edit(UiStackSequence<8>),
+    Edit(UiStackSequence<{ popup::edit::edit_seq_num_frames() }>),
     ExitError,
     Info,
     RmConfirm,

@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, utils::parse::*};
 use argh::FromArgs;
 
 #[derive(FromArgs)]
@@ -82,20 +82,6 @@ pub struct AddCmd {
     pub args: Vec<String>,
 }
 
-pub fn aliases_from_arg(arg: &str) -> Result<Vec<String>, String> {
-    let aliases: Vec<String> = arg
-        .splitn(5, ",")
-        .take(4)
-        .map(|alias| alias.trim().to_lowercase())
-        .collect();
-
-    if !aliases.is_empty() {
-        Ok(aliases)
-    } else {
-        Err("No aliases provided!".into())
-    }
-}
-
 use std::path::PathBuf;
 
 #[derive(FromArgs, PartialEq)]
@@ -163,7 +149,7 @@ pub struct RmCmd {
     pub key: String,
 }
 
-use crate::config::types::{EncoderKind, FileTypeFilter, FilterKind, PermissionsKind};
+use crate::config::types::{EncoderKind, FilterKind, PermissionsKind};
 
 #[derive(FromArgs, PartialEq)]
 #[argh(subcommand, name = "set", description = "Edit a command's attributes")]
@@ -232,70 +218,4 @@ pub struct SetCmd {
         description = "append arguments instead of replacing them"
     )]
     pub append_args: bool,
-}
-
-pub fn recursion_limit_from_arg(arg: &str) -> Result<ScanDirKind, String> {
-    match arg {
-        "max" | "recursive" => Ok(ScanDirKind::Depth(u8::MAX)),
-        "none" => Ok(ScanDirKind::None),
-        _ => match arg.parse::<u8>() {
-            Ok(0) => Ok(ScanDirKind::None),
-            Ok(any) => Ok(ScanDirKind::Depth(any)),
-            _ => Err(format!("{} is not a valid depth", arg)),
-        },
-    }
-}
-
-pub fn encoder_from_arg(arg: &str) -> Result<EncoderKind, String> {
-    match arg {
-        "url" | "web" => Ok(EncoderKind::Url),
-        "json" => Ok(EncoderKind::Json),
-        "none" | "n" | "false" => Ok(EncoderKind::None),
-        _ => Err(String::from("valid inputs are url, json")),
-    }
-}
-
-pub fn permissions_from_arg(arg: &str) -> Result<PermissionsKind, String> {
-    match arg.trim() {
-        "group" => Ok(PermissionsKind::Group),
-        "user" => Ok(PermissionsKind::User),
-        "root" => Ok(PermissionsKind::Root),
-        "any" | "dfl" | "none" => Ok(PermissionsKind::Any),
-        _ => Err(String::from("valid inputs are group, user, root, any")),
-    }
-}
-
-pub fn exts_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
-    args_from_arg(arg)
-        .map(|exts| FilterKind::Exts(exts))
-        .map_err(|_| "no filters provided!".into())
-}
-
-pub fn file_type_filter_from_arg(arg: &str) -> Result<FilterKind, String> {
-    match arg.trim() {
-        "d" | "dir" | "dirs" | "directory" | "directories" => {
-            Ok(FilterKind::FileType(FileTypeFilter::Dirs))
-        }
-        "f" | "file" | "files" => Ok(FilterKind::FileType(FileTypeFilter::Files)),
-        _ => Err(String::from("valid inputs are d, dir, f , file")),
-    }
-}
-
-pub fn args_from_arg(arg: &str) -> Result<Vec<String>, String> {
-    let args: Vec<String> = arg
-        .split_ascii_whitespace()
-        .filter_map(|a| {
-            if !a.is_empty() {
-                Some(a.to_owned())
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    if !args.is_empty() {
-        Ok(args)
-    } else {
-        Err("no args provided!".into())
-    }
 }
