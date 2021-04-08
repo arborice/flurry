@@ -132,7 +132,7 @@ impl<'cmds> StatefulCmdsTable<'cmds> {
                         .height(1)
                     }),
             )
-            .highlight_style(self.rm_selection_style)
+            .highlight_style(self.selection_style)
             .header(header)
             .block(
                 Block::default()

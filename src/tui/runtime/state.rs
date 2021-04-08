@@ -2,9 +2,9 @@ use crate::tui::{layout::*, widgets::*};
 
 #[derive(Debug)]
 pub enum PopupState {
-    Add(popup::add::AddSequence),
+    Add(UiStackSequence<7>),
     Closed,
-    Edit,
+    Edit(UiStackSequence<8>),
     ExitError,
     Info,
     RmConfirm,
@@ -16,7 +16,7 @@ impl AsRef<str> for PopupState {
         match self {
             Add(_) => "Add",
             Closed => "Closed",
-            Edit => "Edit",
+            Edit(_) => "Edit",
             ExitError => "ExitError",
             Info => "Info",
             RmConfirm => "Confirm Removal",
@@ -32,8 +32,8 @@ impl PartialEq<PopupState> for PopupState {
                 Add(_) => true,
                 _ => false,
             },
-            Edit => match other {
-                Edit => true,
+            Edit(_) => match other {
+                Edit(_) => true,
                 _ => false,
             },
             ExitError => match other {
@@ -70,9 +70,11 @@ impl PopupState {
     pub fn render<B: Backend>(&self, frame: &mut Frame<B>, context: &Option<String>) {
         match self {
             PopupState::Add(seq) => {
-                let query = seq.current_frame();
+                let seq_frame = seq.current_frame();
+                let query = seq_frame.query;
+                let height = if seq.err_msg.is_none() { 5 } else { 6 };
 
-                let popup_rect = centered_rect(75, 5, frame.size());
+                let popup_rect = centered_rect(75, height, frame.size());
                 let popup_block = Block::default().title(query).borders(Borders::ALL);
 
                 frame.render_widget(Clear, popup_rect);

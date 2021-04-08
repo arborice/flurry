@@ -55,20 +55,22 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
 #[test]
 fn poll_state() {
     use std::{
-        fs::OpenOptions,
-        io::Write,
+        // fs::OpenOptions,
+        // io::Write,
+        fs::write,
         sync::mpsc::{channel, Receiver, Sender},
         thread,
     };
 
     let test_output_path = "test_output";
     let write_to_test_output = move |val: &str| {
-        OpenOptions::new()
-            .append(true)
-            .open(test_output_path)
-            .seppuku(None)
-            .write(val.as_bytes())
-            .seppuku(None);
+        // OpenOptions::new()
+        // .append(true)
+        // .open(test_output_path)
+        // .seppuku(None)
+        // .write(val.as_bytes())
+        // .seppuku(None);
+        write(test_output_path, val).seppuku(None);
     };
 
     let (tx, rx): (Sender<usize>, Receiver<usize>) = channel();
@@ -101,6 +103,7 @@ fn poll_state() {
             .with_selection_style(Style::default().fg(Color::Cyan));
         let exit_status = app.render(Some(&tx)).unwrap();
 
-        println!("{:#?}", exit_status);
+        assert_eq!(exit_status.success, true);
+        write_to_test_output(&format!("{:#?}", exit_status));
     }
 }

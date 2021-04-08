@@ -1,74 +1,39 @@
 use crate::tui::{layout::*, widgets::*};
 
-#[derive(Debug)]
-pub struct AddSequence {
-    pub buf: String,
-    stages: [(&'static str, String); 7],
-    index: usize,
+pub fn add_seq_items() -> [SeqFrame; 7] {
+    [
+        SeqFrame::new(
+            "Key (trigger) for new command?",
+            "key cannot be empty",
+            |val| !val.trim().is_empty(),
+        ),
+        SeqFrame::new("Binary/primary command?", "", |val| !val.trim().is_empty()),
+        SeqFrame::new("Arguments for command?", "", |_| true),
+        SeqFrame::new("Aliases for command?", "", |_| true),
+        SeqFrame::new("Encoder for output?", "", |val| {
+            vec!["none", "n", "false", "json", "url", "web"].contains(&val)
+        }),
+        SeqFrame::new("Permissions schema?", "", |val| {
+            vec!["none", "any", "dfl", "group", "root", "user"].contains(&val)
+        }),
+        SeqFrame::new("Query which?", "", |val| {
+            vec!["y", "yes", "true", "f", "n", "no", "false"].contains(&val)
+        }),
+    ]
 }
 
-impl AddSequence {
-    pub fn new() -> Self {
-        Self {
-            buf: String::new(),
-            stages: [
-                ("Key (trigger) for new command?", String::new()),
-                ("Binary/primary command?", String::new()),
-                ("Arguments for command?", String::new()),
-                ("Aliases for command?", String::new()),
-                ("Encoder for output?", String::new()),
-                ("Permissions schema?", String::new()),
-                ("Query which?", String::new()),
-            ],
-            index: 0,
-        }
-    }
-
-    pub fn current_frame(&self) -> &str {
-        &self.stages[self.index].0
-    }
-
-    pub fn done(&self) -> bool {
-        self.index == self.stages.len()
-    }
-
-    pub fn generate(&mut self) -> Result<(String, GeneratedCommand)> {
+impl Into<AddCmdUi> for &mut UiStackSequence<7usize> {
+    fn into(self) -> AddCmdUi {
         AddCmdUi {
-            key: self.stages[0].1.drain(..).collect(),
-            bin: self.stages[1].1.drain(..).collect(),
-            joined_args: self.stages[2].1.drain(..).collect(),
-            joined_aliases: self.stages[3].1.drain(..).collect(),
-            encoder: self.stages[4].1.drain(..).collect(),
-            permissions: self.stages[5].1.drain(..).collect(),
-            query_which: self.stages[6].1.drain(..).collect(),
+            key: self.stages[0].buf.drain(..).collect(),
+            bin: self.stages[1].buf.drain(..).collect(),
+            joined_args: self.stages[2].buf.drain(..).collect(),
+            joined_aliases: self.stages[3].buf.drain(..).collect(),
+            encoder: self.stages[4].buf.drain(..).collect(),
+            permissions: self.stages[5].buf.drain(..).collect(),
+            query_which: self.stages[6].buf.drain(..).collect(),
             scan_dir: None,
         }
-        .to_cmd()
-    }
-
-    pub fn push(&mut self) {
-        self.stages[self.index].1 = self.buf.clone();
-
-        if self.index < self.stages.len() {
-            self.index += 1;
-        }
-
-        self.buf.clear();
-    }
-
-    pub fn pop(&mut self) {
-        if self.index > 0 {
-            self.index -= 1;
-            self.buf.clone_from(&self.stages[self.index].1);
-        }
-    }
-
-    pub fn print(&mut self, input: char) {
-        self.buf.push(input);
-    }
-
-    pub fn delete(&mut self) {
-        self.buf.pop();
     }
 }
 

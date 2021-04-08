@@ -36,7 +36,7 @@ impl StatefulCmdsTable<'_> {
         let key = self
             .key_cache
             .get(&selected_index)
-            .expect("UNEXPECTED OUT OF BOUNDS CACHE ACCESS")
+            .seppuku("UNEXPECTED OUT OF BOUNDS CACHE ACCESS")
             .to_string();
         exit_status.go_request.replace(key);
         exit_status.success = true;
@@ -46,7 +46,7 @@ impl StatefulCmdsTable<'_> {
         let key = self
             .key_cache
             .get(&selected_index)
-            .expect("UNEXPECTED OUT OF BOUNDS CACHE ACCESS")
+            .seppuku("UNEXPECTED OUT OF BOUNDS CACHE ACCESS")
             .to_string();
         exit_status.rm_selection.push(key);
         self.selected_indices.push(selected_index);
@@ -120,11 +120,7 @@ impl StatefulCmdsTable<'_> {
                 PopupState::Add(ref mut seq) => {
                     // bindings while add popup is open
                     match event {
-                        a if handler.accepts(&a) => {
-                            if !seq.buf.is_empty() {
-                                seq.push()
-                            }
-                        }
+                        a if handler.accepts(&a) => seq.try_push()?,
                         r if handler.rejects(&r) => *request_popup_close = true,
                         Event(CrossEvent::Key(KeyEvent {
                             code,
@@ -135,17 +131,23 @@ impl StatefulCmdsTable<'_> {
                             KeyCode::Char(c) => seq.print(c),
                             _ => {}
                         },
+                        Event(CrossEvent::Key(KeyEvent {
+                            code: KeyCode::Char(c),
+                            modifiers: KeyModifiers::SHIFT,
+                        })) => seq.print(c.to_ascii_uppercase()),
                         _ => {}
                     }
 
                     if seq.done() {
-                        let (key, cmd) = seq.generate()?;
+                        let add_cmd: popup::add::AddCmdUi = seq.into();
+                        let (key, cmd) = add_cmd.to_cmd()?;
                         (*(*self.cmds.borrow_mut())).insert(key.clone(), cmd);
                         self.update_cache();
                         popup_context.replace(format!("{} was added", key));
+                        continue;
                     }
                 }
-                PopupState::Edit => {}
+                PopupState::Edit(_) => {}
                 PopupState::ExitError | PopupState::Info => unreachable!(),
                 PopupState::RmConfirm => match event {
                     a if handler.accepts(&a) => {

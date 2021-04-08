@@ -250,6 +250,7 @@ pub fn encoder_from_arg(arg: &str) -> Result<EncoderKind, String> {
     match arg {
         "url" | "web" => Ok(EncoderKind::Url),
         "json" => Ok(EncoderKind::Json),
+        "none" | "n" | "false" => Ok(EncoderKind::None),
         _ => Err(String::from("valid inputs are url, json")),
     }
 }

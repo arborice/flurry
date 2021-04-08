@@ -27,6 +27,11 @@ pub struct StatefulEventHandler {
     pub handler: events::EventHandler,
 }
 
+use super::widgets::{
+    popup::{add::add_seq_items, edit::edit_seq_items},
+    UiStackSequence,
+};
+
 impl StatefulEventHandler {
     pub fn new() -> Self {
         Self {
@@ -40,17 +45,17 @@ impl StatefulEventHandler {
 
     pub fn for_add_popup() -> Self {
         Self {
-            state: state::PopupState::Add(super::widgets::popup::add::AddSequence::new()),
+            state: state::PopupState::Add(UiStackSequence::new(add_seq_items())),
             handler: EventHandler {
                 accept: array_vec!(Ec => '\n'.into()),
-                reject: array_vec!(Ec => Event::from_str("esc").unwrap(), Event::from_str("ctrl+c").unwrap()),
+                reject: array_vec!(Ec => Event::from_str(Event::ESC).unwrap(), Event::from_str(Event::CTRL_C).unwrap()),
             },
         }
     }
 
     pub fn for_edit_popup() -> Self {
         Self {
-            state: state::PopupState::Edit,
+            state: state::PopupState::Edit(UiStackSequence::new(edit_seq_items())),
             handler: EventHandler {
                 accept: array_vec!(Ec =>),
                 reject: array_vec!(Ec =>),
@@ -63,7 +68,7 @@ impl StatefulEventHandler {
             state: state::PopupState::RmConfirm,
             handler: EventHandler {
                 accept: array_vec!(Ec => 'y'.into()),
-                reject: array_vec!(Ec => 'n'.into(), Event::from_str("ctrl+c").unwrap(), Event::from_str("esc").unwrap()),
+                reject: array_vec!(Ec => 'n'.into(), Event::from_str(Event::CTRL_C).unwrap(), Event::from_str(Event::ESC).unwrap()),
             },
         }
     }
