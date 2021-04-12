@@ -1,3 +1,4 @@
+use crate::utils::traits::Valid;
 use rkyv::{core_impl::ArchivedOption, Archive, Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -82,6 +83,10 @@ pub enum PermissionsKind {
     Group,
     Root,
     User,
+}
+
+impl Valid for PermissionsKind {
+    const VALID: &'static [&'static str] = &["none", "any", "group", "root", "user"];
 }
 
 impl AsRef<str> for PermissionsKind {
@@ -173,6 +178,10 @@ pub enum EncoderKind {
     None,
 }
 
+impl Valid for EncoderKind {
+    const VALID: &'static [&'static str] = &["none", "json", "url", "web"];
+}
+
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum ScanDirKind {
     Depth(u8),
@@ -205,6 +214,10 @@ pub struct GeneratedCommand {
     pub permissions: PermissionsKind,
     pub query_which: bool,
     pub scan_dir: ScanDirKind,
+}
+
+impl Valid for GeneratedCommand {
+    const VALID: &'static [&'static str] = &["y", "yes", "true", "n", "no", "false"];
 }
 
 use crate::cli::types::AddCmd;

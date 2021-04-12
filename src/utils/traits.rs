@@ -27,3 +27,10 @@ impl<'msg, T, E: std::fmt::Display> Seppuku<'msg, T> for Result<T, E> {
         }
     }
 }
+
+pub trait Valid {
+    const VALID: &'static [&'static str];
+    fn is_valid(query: &str) -> bool {
+        Self::VALID.contains(&query.trim().to_lowercase().as_str())
+    }
+}

@@ -3,7 +3,7 @@ use crate::{
     tui::{
         layout::full_win_layout,
         prelude::*,
-        runtime::{event_handlers, StatefulEventHandler},
+        runtime::events::{event_handlers, StatefulEventHandler},
         widgets::*,
     },
 };
@@ -20,7 +20,6 @@ use tui::{backend::CrosstermBackend, Terminal};
 #[derive(Debug)]
 pub struct TableExitStatus {
     pub go_request: Option<String>,
-    pub new_cmd: Option<popup::add::AddCmdUi>,
     pub rm_selection: Vec<String>,
     pub success: bool,
 }
@@ -61,7 +60,6 @@ impl StatefulCmdsTable<'_> {
         let request_popup_close = &mut false;
         let popup_context: &mut Option<String> = &mut None;
         let mut exit_status = TableExitStatus {
-            new_cmd: None,
             go_request: None,
             rm_selection: vec![],
             success: false,
@@ -138,8 +136,7 @@ impl StatefulCmdsTable<'_> {
                     }
 
                     if seq.done() {
-                        let add_cmd: popup::add::AddCmdUi = seq.into();
-                        let (key, cmd) = add_cmd.to_cmd()?;
+                        let (key, cmd) = seq.into_cmd()?;
                         (*(*self.cmds.borrow_mut())).insert(key.clone(), cmd);
                         self.update_cache();
                         popup_context.replace(format!("{} was added", key));
@@ -171,29 +168,33 @@ impl StatefulCmdsTable<'_> {
                     let SeqFrame { ref query, .. } = seq.current_frame();
                     let cmd_key = self.cmd_key_for_index(&self.state.selected().unwrap());
                     if let Some(ref mut curr_cmd) = (*(*self.cmds.borrow_mut())).get_mut(&cmd_key) {
-                        EditSeq::set_new_val(&query, &mut seq.buf, curr_cmd)?;
+                        EditSeq::set_new_val(&query, &mut seq.buf, curr_cmd)
+                            .map_err(|e| anyhow!(e))?;
                     }
                     if seq.done() {
                         self.update_cache();
-                        continue;
+                        *request_popup_close = true;
                     }
                 }
-                PopupState::ExitError | PopupState::Info => unreachable!(),
+                PopupState::ExitWithMsg | PopupState::Info => unreachable!(),
                 PopupState::RmConfirm => match event {
                     a if handler.accepts(&a) => {
                         exit_status_ref.borrow_mut().success = true;
-                        *exit_requested = true;
+                        popup_context.replace(format!(
+                            "{} removed!",
+                            exit_status_ref.borrow().rm_selection.join(", ")
+                        ));
+                        *ui_state = Self::EXIT_STATE;
                     }
                     r if handler.rejects(&r) => {
                         exit_status_ref.borrow_mut().success = false;
                         popup_context
                             .replace("Operation cancelled. Commands will not be removed.".into());
-                        *ui_state = Self::EXIT_STATE;
-                        continue;
+                        *exit_requested = true;
                     }
                     _ => {
-                        *exit_requested = false;
-                        *request_popup_close = true;
+                        popup_context.replace("(y)es or (n)o?".into());
+                        continue;
                     }
                 },
                 PopupState::Closed => match event {
@@ -212,6 +213,16 @@ impl StatefulCmdsTable<'_> {
                     }
                     a if handler.accepts(&a) => {
                         exit_status_ref.borrow_mut().success = true;
+
+                        if !exit_status_ref.borrow().rm_selection.is_empty() {
+                            popup_context.replace(format!(
+                                "Remove {}?",
+                                exit_status_ref.borrow().rm_selection.join(", ")
+                            ));
+                            *ui_state = Self::RM_STATE;
+                            continue;
+                        }
+
                         *exit_requested = true;
                     }
                     r if handler.rejects(&r) => {
@@ -229,11 +240,6 @@ impl StatefulCmdsTable<'_> {
             }
 
             if *exit_requested {
-                if !exit_status_ref.borrow().rm_selection.is_empty() {
-                    *ui_state = Self::RM_STATE;
-                    continue;
-                }
-
                 disable_raw_mode()?;
                 execute!(
                     terminal.backend_mut(),

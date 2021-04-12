@@ -5,7 +5,7 @@
 
 <br/>
 
-#### setup `edit` stateful stack for tui to alter command properties
+#### add `filters edit` state + stateful stack for tui to alter filter properties
 
 <br/>
 

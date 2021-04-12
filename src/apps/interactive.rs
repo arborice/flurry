@@ -12,7 +12,6 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
 
     let mut gen_cmds = gen_cmds.deserialize(&mut AllocDeserializer)?;
     let mut exit_status = None;
-    let mut success_msg = String::new();
 
     if let Some(ref mut commands) = gen_cmds.commands {
         let cmds_ref = RefCell::from(commands);
@@ -29,7 +28,6 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
                 cmds_ref
                     .borrow_mut()
                     .retain(|key, _| !selection.iter().any(|k| k == key));
-                success_msg += &format!("Removed {}", selection.join(", "));
             }
 
             exit_status.replace(status);
@@ -47,7 +45,6 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
         }
 
         overwrite_cmds(gen_cmds)?;
-        println!("{}", success_msg);
     }
     Ok(())
 }
@@ -55,8 +52,6 @@ pub fn dispatch_interactive(gen_cmds: &ArchivedGeneratedCommands) -> Result<()> 
 #[test]
 fn poll_state() {
     use std::{
-        // fs::OpenOptions,
-        // io::Write,
         fs::write,
         sync::mpsc::{channel, Receiver, Sender},
         thread,
@@ -64,12 +59,6 @@ fn poll_state() {
 
     let test_output_path = "test_output";
     let write_to_test_output = move |val: &str| {
-        // OpenOptions::new()
-        // .append(true)
-        // .open(test_output_path)
-        // .seppuku(None)
-        // .write(val.as_bytes())
-        // .seppuku(None);
         write(test_output_path, val).seppuku(None);
     };
 

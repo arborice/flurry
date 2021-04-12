@@ -22,6 +22,7 @@ impl fmt::Debug for SeqFrame {
         f.debug_struct("SeqFrame")
             .field("query", &self.query)
             .field("buf", &self.buf)
+            .field("validator", &"VALIDATOR FUNCTION")
             .field("err_msg", &self.err_msg)
             .finish()
     }
@@ -38,7 +39,29 @@ impl SeqFrame {
     }
 }
 
-use crate::prelude::*;
+pub struct UiStack;
+impl UiStack {
+    pub const KEY: &'static str = "Key (trigger) for new command?";
+    pub const BIN: &'static str = "Binary/primary command?";
+    pub const ARGS: &'static str = "Arguments for command?";
+    pub const ALIASES: &'static str = "Aliases for command?";
+    pub const ENCODER: &'static str = "Encoder for output?";
+    pub const PERMISSIONS: &'static str = "Permissions schema?";
+    pub const SCAN_DIR: &'static str =
+        "Scan directory? (Enter an integer to set fixed recursion limit)";
+    pub const WHICH: &'static str = "Query which?";
+
+    pub const KEY_ERR: &'static str = "key cannot be empty";
+    pub const BIN_ERR: &'static str = "trigger cannot be empty";
+    pub const ARGS_ERR: &'static str = "";
+    pub const ALIASES_ERR: &'static str = "";
+    pub const ENCODER_ERR: &'static str = "valid values: none, json, url";
+    pub const PERMISSIONS_ERR: &'static str = "Permissions schema?";
+    pub const SCAN_DIR_ERR: &'static str = "valid values: max, recursive, none, {int} (max 255)";
+    pub const WHICH_ERR: &'static str = "(y)es or (n)o";
+}
+
+use crate::prelude::{anyhow, Result};
 
 #[derive(Debug)]
 pub struct UiStackSequence<const NUM_FRAMES: usize> {

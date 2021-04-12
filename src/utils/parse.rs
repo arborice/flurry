@@ -34,21 +34,6 @@ pub fn aliases_from_arg(arg: &str) -> Result<Vec<String>, String> {
     }
 }
 
-// TODO: implement Aliases struct with const generics
-// struct Aliases<const NUM: usize>([String; NUM]);
-// pub fn aliases_from_arg(arg: &str) -> Result<Aliases<4>, String> {
-// let mut aliases = Aliases([String::new(), String::new(), String::new(), String::new()]);
-// for (i, alias) in arg.splitn(5, ",").take(4).enumerate() {
-// aliases.0[i] = alias.trim().to_lowercase();
-// }
-//
-// if !aliases.is_empty() {
-// Ok(aliases)
-// } else {
-// Err("No aliases provided!".into())
-// }
-// }
-
 pub fn recursion_limit_from_arg(arg: &str) -> Result<ScanDirKind, String> {
     match arg {
         "max" | "recursive" => Ok(ScanDirKind::Depth(u8::MAX)),
