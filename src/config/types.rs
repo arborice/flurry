@@ -77,7 +77,7 @@ impl ArchivedGeneratedCommands {
     }
 }
 
-#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum PermissionsKind {
     Any,
     Group,
@@ -171,7 +171,7 @@ impl Default for FiltersKind {
     }
 }
 
-#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum EncoderKind {
     Json,
     Url,
@@ -182,7 +182,7 @@ impl Valid for EncoderKind {
     const VALID: &'static [&'static str] = &["none", "json", "url", "web"];
 }
 
-#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub enum ScanDirKind {
     Depth(u8),
     None,
@@ -222,6 +222,45 @@ impl Valid for GeneratedCommand {
 
 use crate::cli::types::AddCmd;
 impl GeneratedCommand {
+    pub fn clone_from(other: &mut GeneratedCommand) -> Self {
+        let GeneratedCommand {
+            ref mut bin,
+            ref mut dfl_args,
+            ref mut encoder,
+            ref mut aliases,
+            ref mut filter,
+            ref mut permissions,
+            ref mut query_which,
+            ref mut scan_dir,
+        } = other;
+
+        let new_encoder = encoder.as_ref().and_then(|enc| Some(enc.clone()));
+        *encoder = None;
+        let new_filter = filter.clone();
+        *filter = FiltersKind::None;
+        let new_permissions = permissions.clone();
+        *permissions = PermissionsKind::Any;
+        let which = *query_which;
+        *query_which = false;
+        let new_scan_dir = scan_dir.clone();
+        *scan_dir = ScanDirKind::None;
+
+        Self {
+            bin: bin.drain(..).collect(),
+            dfl_args: dfl_args
+                .as_mut()
+                .and_then(|ref mut args| Some(args.drain(..).collect())),
+            encoder: new_encoder,
+            aliases: aliases
+                .as_mut()
+                .and_then(|ref mut al| Some(al.drain(..).collect())),
+            filter: new_filter,
+            permissions: new_permissions,
+            query_which: which,
+            scan_dir: new_scan_dir,
+        }
+    }
+
     pub fn from_args(
         AddCmd {
             aliases,

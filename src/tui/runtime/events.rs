@@ -147,6 +147,7 @@ pub struct EventHandler {
 impl EventHandler {
     pub const ADD: char = 'a';
     pub const EDIT: char = 'e';
+    pub const FILTER: char = 'f';
     pub const GO: char = 'g';
     pub const RM: char = 'r';
 
@@ -175,7 +176,7 @@ impl PartialEq<char> for Event {
 use crate::tui::{
     runtime::state::PopupState,
     widgets::{
-        popup::{add::add_seq_items, edit::edit_seq_items},
+        popup::{add::add_seq_items, edit::edit_seq_items, filters::filter_seq_items},
         UiStackSequence,
     },
 };
@@ -218,6 +219,16 @@ impl StatefulEventHandler {
         }
     }
 
+    pub fn for_filter_popup() -> Self {
+        Self {
+            state: PopupState::Filters(UiStackSequence::new(filter_seq_items())),
+            handler: EventHandler {
+                accept: array_vec!(Ec => '\n'.into()),
+                reject: array_vec!(Ec => Event::from_str(Event::ESC).unwrap(), Event::from_str(Event::CTRL_C).unwrap()),
+            },
+        }
+    }
+
     pub fn for_rm_popup() -> Self {
         Self {
             state: PopupState::RmConfirm,
@@ -229,12 +240,20 @@ impl StatefulEventHandler {
     }
 }
 
-pub fn event_handlers() -> [StatefulEventHandler; 5] {
+pub fn event_handlers() -> [StatefulEventHandler; 7] {
     [
         StatefulEventHandler::new(),
         StatefulEventHandler::for_add_popup(),
         StatefulEventHandler::for_edit_popup(),
+        StatefulEventHandler::for_filter_popup(),
         StatefulEventHandler::for_rm_popup(),
+        StatefulEventHandler {
+            state: PopupState::Info,
+            handler: EventHandler {
+                accept: array_vec!(Ec =>),
+                reject: array_vec!(Ec =>),
+            },
+        },
         StatefulEventHandler {
             state: PopupState::ExitWithMsg,
             handler: EventHandler {

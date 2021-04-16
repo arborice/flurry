@@ -14,7 +14,7 @@ home = "0.5.3"
 percent-encoding = "2.1.0"
 rand = "0.8.3"
 regex = "1.4.5"
-rkyv = "0.4.3"
+rkyv = "0.5.1"
 tinyvec = { version = "1.1.1", features = ["rustc_1_40"] }
 tui = { version = "0.14.0", features = ["crossterm"], default_features = false }
 which = "4.0.2"

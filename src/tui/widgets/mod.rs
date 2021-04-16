@@ -81,6 +81,10 @@ impl<const NUM_FRAMES: usize> UiStackSequence<NUM_FRAMES> {
         }
     }
 
+    pub fn drain_frame_buf(&mut self, frame_index: usize) -> String {
+        self.stages[frame_index].buf.drain(..).collect()
+    }
+
     pub fn current_frame(&self) -> &SeqFrame {
         &self.stages[self.index]
     }
