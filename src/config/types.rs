@@ -122,6 +122,15 @@ pub enum FileTypeFilter {
     Files,
 }
 
+impl AsRef<str> for FileTypeFilter {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Dirs => "dirs",
+            Self::Files => "files",
+        }
+    }
+}
+
 impl PartialEq<&ArchivedFileTypeFilter> for FileTypeFilter {
     fn eq(&self, og: &&ArchivedFileTypeFilter) -> bool {
         match self {

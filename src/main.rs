@@ -8,8 +8,8 @@ pub(crate) mod utils;
 use prelude::*;
 
 fn main() -> Result<()> {
-	config::write::init_cmds_if_not_exists()?;
+    config::write::init_cmds_if_not_exists()?;
 
-	let flurry_app: cli::types::Flurry = argh::from_env();
-	cli::exec_cli(flurry_app)
+    let flurry_app: cli::types::Flurry = argh::from_env();
+    cli::exec_cli(flurry_app)
 }

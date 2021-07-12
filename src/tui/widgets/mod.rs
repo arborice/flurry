@@ -61,8 +61,6 @@ impl UiStack {
     pub const WHICH_ERR: &'static str = "(y)es or (n)o";
 }
 
-use crate::prelude::{anyhow, Result};
-
 #[derive(Debug)]
 pub struct UiStackSequence<const NUM_FRAMES: usize> {
     pub buf: String,
@@ -81,6 +79,10 @@ impl<const NUM_FRAMES: usize> UiStackSequence<NUM_FRAMES> {
         }
     }
 
+    pub fn clear_bufs(&mut self) {
+        self.stages.iter_mut().for_each(|frame| frame.buf.clear())
+    }
+
     pub fn drain_frame_buf(&mut self, frame_index: usize) -> String {
         self.stages[frame_index].buf.drain(..).collect()
     }
@@ -93,29 +95,38 @@ impl<const NUM_FRAMES: usize> UiStackSequence<NUM_FRAMES> {
         self.index == self.stages.len()
     }
 
-    pub fn try_push(&mut self) -> Result<()> {
-        if self.index >= NUM_FRAMES {
-            return Err(anyhow!(
-                "{:#?} has length of {}. Attempted out of range access.",
-                self,
-                NUM_FRAMES
-            ));
-        }
-
+    pub fn validate(&mut self) -> Result<(), ()> {
         let SeqFrame {
-            ref mut buf,
+            err_msg,
             ref validator,
-            ref err_msg,
             ..
         } = self.stages[self.index];
 
-        if validator(&self.buf) {
-            *buf = self.buf.drain(..).collect();
-            self.index += 1;
+        if !validator(&self.buf) {
+            self.err_msg.replace(err_msg.into());
+            Err(())
         } else {
-            self.err_msg.replace(err_msg.to_string());
+            Ok(())
         }
-        Ok(())
+    }
+
+    pub fn try_push(&mut self) -> Result<(), ()> {
+        if self.index >= NUM_FRAMES {
+            self.err_msg.replace(format!(
+                "{:#?} has length of {}. Attempted out of range access.",
+                self, NUM_FRAMES
+            ));
+        }
+
+        match self.err_msg {
+            Some(_) => Err(()),
+            None => {
+                let SeqFrame { ref mut buf, .. } = self.stages[self.index];
+                *buf = self.buf.drain(..).collect();
+                self.index += 1;
+                Ok(())
+            }
+        }
     }
 
     pub fn pop(&mut self) {

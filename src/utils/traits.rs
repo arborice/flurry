@@ -28,6 +28,7 @@ impl<'msg, T, E: std::fmt::Display> Seppuku<'msg, T> for Result<T, E> {
     }
 }
 
+/// handles validation of cli input based on associated VALID const
 pub trait Valid {
     const VALID: &'static [&'static str];
     fn is_valid(query: &str) -> bool {

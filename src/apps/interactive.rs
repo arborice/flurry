@@ -90,9 +90,12 @@ fn poll_state() {
             .with_header_style(Style::default().fg(Color::Blue))
             .with_rm_style(Style::default().fg(Color::Red))
             .with_selection_style(Style::default().fg(Color::Cyan));
-        let exit_status = app.render(Some(&tx)).unwrap();
-
-        assert_eq!(exit_status.success, true);
-        write_to_test_output(&format!("{:#?}", exit_status));
+        match app.render(Some(&tx)) {
+            Ok(exit_status) => {
+                write_to_test_output(&format!("{:#?}", &exit_status));
+                assert_eq!(exit_status.success, true);
+            }
+            Err(e) => write_to_test_output(e.to_string().as_str()),
+        }
     }
 }

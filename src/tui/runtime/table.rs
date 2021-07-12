@@ -134,11 +134,16 @@ impl StatefulCmdsTable<'_> {
                     // bindings while add popup is open
                     match event {
                         a if handler.accepts(&a) => {
+                            if seq.validate().is_err() {
+                                continue;
+                            }
                             let SeqFrame { query, ref buf, .. } = seq.current_frame();
                             if let Err(e) = AddSeq::set_new_val(query, buf, &mut bufs_ref.cmd) {
-                                popup_context.replace(e);
-                            } else {
-                                seq.try_push()?;
+                                seq.err_msg.replace(e);
+                                continue;
+                            }
+                            if seq.try_push().is_err() {
+                                continue;
                             }
                         }
                         r if handler.rejects(&r) => *request_popup_close = true,
@@ -172,14 +177,19 @@ impl StatefulCmdsTable<'_> {
 
                     match event {
                         a if handler.accepts(&a) => {
-                            let SeqFrame { query, .. } = seq.current_frame();
                             let cmd_key = self.cmd_key_for_index(&bufs_ref.active_index);
                             if let Some(curr_cmd) = (*self.cmds.borrow_mut()).get_mut(&cmd_key) {
+                                if seq.validate().is_err() {
+                                    continue;
+                                }
+                                let SeqFrame { query, .. } = seq.current_frame();
                                 if let Err(e) = EditSeq::set_new_val(&query, &mut seq.buf, curr_cmd)
                                 {
-                                    popup_context.replace(e);
-                                } else {
-                                    seq.try_push()?;
+                                    seq.err_msg.replace(e);
+                                    continue;
+                                }
+                                if seq.try_push().is_err() {
+                                    continue;
                                 }
                             } else {
                                 exit_status_ref.borrow_mut().success = false;
@@ -216,25 +226,31 @@ impl StatefulCmdsTable<'_> {
                         let key = self.cmd_key_for_index(&bufs_ref.active_index);
                         if let Some(cmd) = (*self.cmds.borrow()).get(key.as_str()) {
                             bufs_ref.filters.clone_from_cmd(cmd);
+                            bufs_ref.filters.hydrate_bufs(seq);
                         } else {
                             *request_popup_close = true;
                         }
                     }
 
-                    // bindings while add popup is open
                     match event {
                         a if handler.accepts(&a) => {
+                            if seq.validate().is_err() {
+                                continue;
+                            }
                             let SeqFrame { query, ref buf, .. } = seq.current_frame();
                             if let Err(e) =
                                 FilterSeq::set_new_val(query, buf, &mut bufs_ref.filters)
                             {
-                                popup_context.replace(e);
-                            } else {
-                                seq.try_push()?;
+                                seq.err_msg.replace(e);
+                                continue;
+                            }
+                            if seq.try_push().is_err() {
+                                continue;
                             }
                         }
                         r if handler.rejects(&r) => {
                             bufs_ref.filters.clear();
+                            seq.clear_bufs();
                             *request_popup_close = true;
                         }
                         Event(CrossEvent::Key(KeyEvent {
@@ -262,7 +278,8 @@ impl StatefulCmdsTable<'_> {
                         continue;
                     }
                 }
-                PopupState::ExitWithMsg | PopupState::Info => unreachable!(),
+                PopupState::ExitWithMsg => unreachable!(),
+                PopupState::Info => *request_popup_close = true,
                 PopupState::RmConfirm => match event {
                     a if handler.accepts(&a) => {
                         exit_status_ref.borrow_mut().success = true;
